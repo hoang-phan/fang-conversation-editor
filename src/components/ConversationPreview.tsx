@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import type { Conversation } from '../types'
 import { SpriteLayer } from './SpriteLayer'
 import { ChatBubble } from './ChatBubble'
@@ -6,10 +5,15 @@ import { ChatBubble } from './ChatBubble'
 interface Props {
   conversation: Conversation
   baseUrl: string
+  chatIndex: number
+  onChatIndexChange: (i: number) => void
+  hasPrevConversation?: boolean
+  hasNextConversation?: boolean
+  onPrevConversation?: () => void
+  onNextConversation?: () => void
 }
 
-export function ConversationPreview({ conversation, baseUrl }: Props) {
-  const [chatIndex, setChatIndex] = useState(0)
+export function ConversationPreview({ conversation, baseUrl, chatIndex, onChatIndexChange, hasPrevConversation, hasNextConversation, onPrevConversation, onNextConversation }: Props) {
 
   const chats = conversation.chats
   const current = chats[chatIndex] ?? null
@@ -33,10 +37,18 @@ export function ConversationPreview({ conversation, baseUrl }: Props) {
   const showSpriteLayer = !isCinematic || isMinigame
 
   function prev() {
-    setChatIndex(i => Math.max(0, i - 1))
+    if (chatIndex === 0 && hasPrevConversation && onPrevConversation) {
+      onPrevConversation()
+    } else {
+      onChatIndexChange(Math.max(0, chatIndex - 1))
+    }
   }
   function next() {
-    setChatIndex(i => Math.min(chats.length - 1, i + 1))
+    if (chatIndex === chats.length - 1 && hasNextConversation && onNextConversation) {
+      onNextConversation()
+    } else {
+      onChatIndexChange(Math.min(chats.length - 1, chatIndex + 1))
+    }
   }
 
   if (!current) {
@@ -72,8 +84,11 @@ export function ConversationPreview({ conversation, baseUrl }: Props) {
           />
         )}
 
+        <div className="flex-1" />
+
+        {/* Sprites — absolute over the full preview area (including dialog), mirroring fang's fixed positioning */}
         {showSpriteLayer && (
-          <div className="relative flex-1 overflow-hidden">
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
             <SpriteLayer sprites={sprites} baseUrl={baseUrl} />
           </div>
         )}
@@ -88,7 +103,7 @@ export function ConversationPreview({ conversation, baseUrl }: Props) {
       <div className="shrink-0 flex items-center justify-between px-4 py-2 bg-gray-900 border-t border-gray-700">
         <button
           onClick={prev}
-          disabled={chatIndex === 0}
+          disabled={chatIndex === 0 && !hasPrevConversation}
           className="px-3 py-1 rounded text-sm bg-gray-700 text-gray-200 disabled:opacity-30 hover:bg-gray-600 transition-colors"
         >
           ◀ Prev
@@ -98,7 +113,7 @@ export function ConversationPreview({ conversation, baseUrl }: Props) {
         </span>
         <button
           onClick={next}
-          disabled={chatIndex === chats.length - 1}
+          disabled={chatIndex === chats.length - 1 && !hasNextConversation}
           className="px-3 py-1 rounded text-sm bg-gray-700 text-gray-200 disabled:opacity-30 hover:bg-gray-600 transition-colors"
         >
           Next ▶

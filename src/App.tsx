@@ -1,16 +1,31 @@
 import { useRef, useState } from 'react'
-import type { ConversationFile } from './types'
-import { parseYaml } from './parse'
+import type { Chat, Conversation, ConversationFile } from './types'
+import { parseYaml, exportYaml } from './parse'
 import { ConversationList } from './components/ConversationList'
 import { ConversationPreview } from './components/ConversationPreview'
+import { EditPanel } from './components/EditPanel'
 
 export default function App() {
   const [conversations, setConversations] = useState<ConversationFile | null>(null)
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [selectedChatIndex, setSelectedChatIndex] = useState(0)
   const [fileName, setFileName] = useState<string | null>(null)
+  const [exportName, setExportName] = useState<string>('')
   const [parseError, setParseError] = useState<string | null>(null)
   const [baseUrl, setBaseUrl] = useState('http://localhost:3000')
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  function handleExport() {
+    if (!conversations || !fileName) return
+    const yaml = exportYaml(conversations)
+    const blob = new Blob([yaml], { type: 'text/yaml' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = exportName || fileName
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -24,6 +39,7 @@ export default function App() {
         setConversations(parsed)
         setSelectedIndex(0)
         setFileName(file.name)
+        setExportName(file.name)
       } catch (err) {
         setParseError(err instanceof Error ? err.message : String(err))
         setConversations(null)
@@ -36,6 +52,68 @@ export default function App() {
   }
 
   const selectedConv = conversations?.[selectedIndex] ?? null
+  const selectedChat = selectedConv?.chats[selectedChatIndex] ?? null
+
+  function handleChatChange(updated: Chat) {
+    if (!conversations) return
+    setConversations(conversations.map((conv, ci) => {
+      if (ci !== selectedIndex) return conv
+      return {
+        ...conv,
+        chats: conv.chats.map((chat, i) => i === selectedChatIndex ? updated : chat),
+      }
+    }))
+  }
+
+  function handleConversationChange(updated: Conversation) {
+    if (!conversations) return
+    setConversations(conversations.map((conv, ci) => ci === selectedIndex ? updated : conv))
+  }
+
+  function handleAddChat(chat: Chat, insertAt: number) {
+    if (!conversations) return
+    setConversations(conversations.map((conv, ci) => {
+      if (ci !== selectedIndex) return conv
+      const chats = [...conv.chats]
+      chats.splice(insertAt, 0, chat)
+      return { ...conv, chats }
+    }))
+    setSelectedChatIndex(insertAt)
+  }
+
+  function handleDeleteChat(chatIndex: number) {
+    if (!conversations) return
+    const conv = conversations[selectedIndex]
+    if (conv.chats.length <= 1) return // don't delete the last chat
+    setConversations(conversations.map((c, ci) => {
+      if (ci !== selectedIndex) return c
+      return { ...c, chats: c.chats.filter((_, i) => i !== chatIndex) }
+    }))
+    setSelectedChatIndex(Math.min(chatIndex, conv.chats.length - 2))
+  }
+
+  function handleSplitHere(chatIndex: number) {
+    if (!conversations) return
+    const conv = conversations[selectedIndex]
+    if (chatIndex >= conv.chats.length - 1) return // nothing to split off
+    const convA: Conversation = {
+      ...conv,
+      chats: conv.chats.slice(0, chatIndex + 1),
+    }
+    const convB: Conversation = {
+      ...conv,
+      chats: conv.chats.slice(chatIndex + 1),
+    }
+    const next = [
+      ...conversations.slice(0, selectedIndex),
+      convA,
+      convB,
+      ...conversations.slice(selectedIndex + 1),
+    ]
+    setConversations(next)
+    setSelectedChatIndex(0)
+    // keep selectedIndex pointing at convA; convB is at selectedIndex + 1
+  }
 
   if (!conversations) {
     return (
@@ -80,6 +158,21 @@ export default function App() {
             className="bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-gray-200 w-52"
           />
         </label>
+        <div className="flex items-center gap-1">
+          <input
+            type="text"
+            value={exportName}
+            onChange={e => setExportName(e.target.value)}
+            className="bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-gray-200 w-44 font-mono"
+            placeholder="output.yml"
+          />
+          <button
+            onClick={handleExport}
+            className="px-3 py-1 bg-pink-700 hover:bg-pink-600 text-white text-xs rounded transition-colors"
+          >
+            Export YAML
+          </button>
+        </div>
         <button
           onClick={() => fileInputRef.current?.click()}
           className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs rounded transition-colors"
@@ -114,6 +207,19 @@ export default function App() {
               key={selectedIndex}
               conversation={selectedConv}
               baseUrl={baseUrl}
+              chatIndex={selectedChatIndex}
+              onChatIndexChange={setSelectedChatIndex}
+              hasPrevConversation={selectedIndex > 0}
+              hasNextConversation={selectedIndex < conversations.length - 1}
+              onPrevConversation={() => {
+                const prevIdx = selectedIndex - 1
+                setSelectedIndex(prevIdx)
+                setSelectedChatIndex(conversations[prevIdx].chats.length - 1)
+              }}
+              onNextConversation={() => {
+                setSelectedIndex(selectedIndex + 1)
+                setSelectedChatIndex(0)
+              }}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-gray-500 text-sm">
@@ -122,15 +228,25 @@ export default function App() {
           )}
         </div>
 
-        {/* Right panel — placeholder for edit panel */}
+        {/* Right panel — edit panel */}
         <div className="w-72 shrink-0 border-l border-gray-700 bg-gray-900 flex flex-col">
-          <div className="px-3 py-2 border-b border-gray-700 shrink-0">
-            <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">Edit</span>
-          </div>
-          <div className="flex-1 flex items-center justify-center text-gray-600 text-xs text-center px-4">
-            Editing panel coming soon.
-            <br />Select a chat in the preview.
-          </div>
+          {selectedChat && selectedConv ? (
+            <EditPanel
+              conversation={selectedConv}
+              chat={selectedChat}
+              chatIndex={selectedChatIndex}
+              baseUrl={baseUrl}
+              onChange={handleChatChange}
+              onConversationChange={handleConversationChange}
+              onSplitHere={handleSplitHere}
+              onAddChat={handleAddChat}
+              onDeleteChat={handleDeleteChat}
+            />
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-gray-600 text-xs text-center px-4">
+              Select a conversation to edit.
+            </div>
+          )}
         </div>
       </div>
     </div>

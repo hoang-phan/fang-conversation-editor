@@ -7,7 +7,7 @@ export interface Sprite {
 }
 
 export interface Chat {
-  role: 'hero' | 'opponent' | 'other'
+  role: 'other' | 'hero' | 'opponent'
   content: string
   position?: number
   sprites?: Sprite[]

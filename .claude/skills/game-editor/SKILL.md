@@ -23,8 +23,9 @@ You are working on `fang-conversation-editor`, a standalone browser tool for edi
 3. **Locate relevant source files using the File Map.** Read the specific files before editing them.
 
 4. **Check the fang reference implementation when rendering fidelity is in question.** The ground truth for how conversations render is:
-   - `fang/src/components/Reward/ConversationOverlay.tsx` — main renderer
-   - `fang/src/components/Reward/Sprite.tsx` — sprite positioning
+   - `fang/src/components/Reward/ConversationOverlay.tsx` — main renderer (background, sprite area, mode detection)
+   - `fang/src/components/Reward/DialogueBottom.tsx` — dialog box HTML/styles (colors, speaker label, `rounded-xl rounded-tl-none`, `#FDC9D4`, hero blue / opponent pink)
+   - `fang/src/components/Reward/Sprite.tsx` — sprite positioning formula
    - `fang/src/hooks/useConversationAdvance.ts` — conversation flow logic
    - `fang/src/types/index.ts` — canonical TypeScript types
 
@@ -54,7 +55,8 @@ You are working on `fang-conversation-editor`, a standalone browser tool for edi
 | `src/components/ConversationPreview.tsx` | Center panel (faithful render) |
 | `src/components/ChatBubble.tsx` | Single chat render |
 | `src/components/SpriteLayer.tsx` | Sprite overlay |
-| `src/components/EditPanel.tsx` | Right panel form editor |
+| `src/components/EditPanel.tsx` | Right panel form editor (chat fields + conversation background) |
+| `src/components/AssetPickerDialog.tsx` | Modal for browsing backend assets (`/api/v1/assets`); used by EditPanel to pick sprite and background URLs |
 | `src/components/YamlPreview.tsx` | Raw YAML preview |
 
 ## Key constraints (never violate)
