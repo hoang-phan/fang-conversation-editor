@@ -21,6 +21,16 @@ export function EditPanel({ conversation, chat, chatIndex, baseUrl, onChange, on
   const [pickerTarget, setPickerTarget] = useState<'new' | number | 'background' | null>(null)
 
   const sprites = chat.sprites ?? []
+  const prevSprites = chatIndex > 0 ? (conversation.chats[chatIndex - 1].sprites ?? []) : []
+  const nextSprites = chatIndex < conversation.chats.length - 1 ? (conversation.chats[chatIndex + 1].sprites ?? []) : []
+
+  function copySpritesFromPrev() {
+    onChange({ ...chat, sprites: prevSprites.length ? prevSprites.map(s => ({ ...s })) : undefined })
+  }
+
+  function copySpritesFromNext() {
+    onChange({ ...chat, sprites: nextSprites.length ? nextSprites.map(s => ({ ...s })) : undefined })
+  }
 
   function updateSprite(index: number, patch: Partial<Sprite>) {
     const updated = sprites.map((s, i) => i === index ? { ...s, ...patch } : s)
@@ -186,14 +196,34 @@ export function EditPanel({ conversation, chat, chatIndex, baseUrl, onChange, on
 
         {/* Sprites */}
         <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-1">
             <span className="text-xs text-gray-400 font-medium">Sprites</span>
-            <button
-              onClick={() => setPickerTarget('new')}
-              className="text-xs px-2 py-0.5 rounded bg-pink-700 hover:bg-pink-600 text-white transition-colors"
-            >
-              + Add Sprite
-            </button>
+            <div className="flex gap-1">
+              {prevSprites.length > 0 && (
+                <button
+                  onClick={copySpritesFromPrev}
+                  className="text-xs px-2 py-0.5 rounded bg-gray-600 hover:bg-gray-500 text-gray-200 transition-colors"
+                  title="Replace current sprites with those from the previous chat"
+                >
+                  Copy from prev
+                </button>
+              )}
+              {nextSprites.length > 0 && (
+                <button
+                  onClick={copySpritesFromNext}
+                  className="text-xs px-2 py-0.5 rounded bg-gray-600 hover:bg-gray-500 text-gray-200 transition-colors"
+                  title="Replace current sprites with those from the next chat"
+                >
+                  Copy from next
+                </button>
+              )}
+              <button
+                onClick={() => setPickerTarget('new')}
+                className="text-xs px-2 py-0.5 rounded bg-pink-700 hover:bg-pink-600 text-white transition-colors"
+              >
+                + Add Sprite
+              </button>
+            </div>
           </div>
 
           {sprites.length === 0 && (
