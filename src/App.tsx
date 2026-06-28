@@ -5,6 +5,7 @@ import { ConversationList } from './components/ConversationList'
 import { ConversationPreview } from './components/ConversationPreview'
 import { EditPanel } from './components/EditPanel'
 import { QuickAddEConversationsDialog } from './components/QuickAddEConversationsDialog'
+import { ScriptImportDialog } from './components/ScriptImportDialog'
 
 export default function App() {
   const [conversations, setConversations] = useState<ConversationFile | null>(null)
@@ -17,6 +18,7 @@ export default function App() {
   const [uploadConfirm, setUploadConfirm] = useState(false)
   const [uploadStatus, setUploadStatus] = useState<{ ok: boolean; message: string } | null>(null)
   const [showQuickAddE, setShowQuickAddE] = useState(false)
+  const [showScriptImport, setShowScriptImport] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   function handleExport() {
@@ -243,12 +245,20 @@ export default function App() {
             {parseError}
           </div>
         )}
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="px-6 py-3 bg-pink-500 hover:bg-pink-400 text-white font-semibold rounded-lg transition-colors"
-        >
-          Open YAML file
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="px-6 py-3 bg-pink-500 hover:bg-pink-400 text-white font-semibold rounded-lg transition-colors"
+          >
+            Open YAML file
+          </button>
+          <button
+            onClick={() => setShowScriptImport(true)}
+            className="px-6 py-3 bg-violet-600 hover:bg-violet-500 text-white font-semibold rounded-lg transition-colors"
+          >
+            Import from Script
+          </button>
+        </div>
         <input
           ref={fileInputRef}
           type="file"
@@ -256,6 +266,20 @@ export default function App() {
           className="hidden"
           onChange={handleFileChange}
         />
+        {showScriptImport && (
+          <ScriptImportDialog
+            baseUrl={baseUrl}
+            onImport={(imported, filename) => {
+              setConversations(imported)
+              setSelectedIndex(0)
+              setSelectedChatIndex(0)
+              setFileName(filename)
+              setExportName(filename)
+              setShowScriptImport(false)
+            }}
+            onClose={() => setShowScriptImport(false)}
+          />
+        )}
       </div>
     )
   }
@@ -289,6 +313,12 @@ export default function App() {
             className="px-3 py-1 bg-pink-700 hover:bg-pink-600 text-white text-xs rounded transition-colors"
           >
             Export YAML
+          </button>
+          <button
+            onClick={() => setShowScriptImport(true)}
+            className="px-3 py-1 bg-violet-700 hover:bg-violet-600 text-white text-xs rounded transition-colors"
+          >
+            Import Script
           </button>
           <button
             onClick={() => setShowQuickAddE(true)}
@@ -357,6 +387,22 @@ export default function App() {
             </div>
           )}
         </div>
+
+        {/* Script import dialog */}
+        {showScriptImport && (
+          <ScriptImportDialog
+            baseUrl={baseUrl}
+            onImport={(imported, filename) => {
+              setConversations(imported)
+              setSelectedIndex(0)
+              setSelectedChatIndex(0)
+              setFileName(filename)
+              setExportName(filename)
+              setShowScriptImport(false)
+            }}
+            onClose={() => setShowScriptImport(false)}
+          />
+        )}
 
         {/* Quick Add E-Conversations dialog */}
         {showQuickAddE && (
