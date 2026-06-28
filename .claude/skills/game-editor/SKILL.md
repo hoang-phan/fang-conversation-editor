@@ -22,26 +22,28 @@ You are working on `fang-conversation-editor`, a standalone browser tool for edi
 
 3. **Locate relevant source files using the File Map.** Read the specific files before editing them.
 
-4. **Check the fang reference implementation when rendering fidelity is in question.** The ground truth for how conversations render is:
+4. **For any task involving a backend API call, read `fang-backend/docs/api.md` first.** It documents all available endpoints — don't scan the backend source or guess at routes. The relevant endpoint for conversation uploads is `POST /api/v1/assets/upload_conversation_yml`.
+
+5. **Check the fang reference implementation when rendering fidelity is in question.** The ground truth for how conversations render is:
    - `fang/src/components/Reward/ConversationOverlay.tsx` — main renderer (background, sprite area, mode detection)
    - `fang/src/components/Reward/DialogueBottom.tsx` — dialog box HTML/styles (colors, speaker label, `rounded-xl rounded-tl-none`, `#FDC9D4`, hero blue / opponent pink)
    - `fang/src/components/Reward/Sprite.tsx` — sprite positioning formula
    - `fang/src/hooks/useConversationAdvance.ts` — conversation flow logic
    - `fang/src/types/index.ts` — canonical TypeScript types
 
-5. **Understand existing patterns before writing new code.** Check how similar components are structured in the editor before adding new ones.
+6. **Understand existing patterns before writing new code.** Check how similar components are structured in the editor before adding new ones.
 
-6. **Implement the change**, keeping:
+7. **Implement the change**, keeping:
    - Rendering faithful to ConversationOverlay.tsx
    - YAML export valid and loadable by fang-backend seeds (no extra keys, no position fields, relative URLs preserved)
    - TypeScript types consistent with `src/types.ts`
 
-7. **Verify:**
+8. **Verify:**
    - Does the editor preview match what fang would render for the same chat?
    - Is the YAML output parseable by `js-yaml` and valid per the schema in EDITOR_DESIGN.md?
    - Are TypeScript types satisfied (no `any` escapes)?
 
-8. **Flag drift** — if EDITOR_DESIGN.md is out of date with the actual implementation, note it explicitly and suggest an update. Don't silently accept a mismatch.
+9. **Flag drift** — if EDITOR_DESIGN.md is out of date with the actual implementation, note it explicitly and suggest an update. Don't silently accept a mismatch.
 
 ## File Map (quick reference)
 

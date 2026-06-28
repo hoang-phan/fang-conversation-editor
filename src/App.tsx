@@ -4,6 +4,7 @@ import { parseYaml, exportYaml } from './parse'
 import { ConversationList } from './components/ConversationList'
 import { ConversationPreview } from './components/ConversationPreview'
 import { EditPanel } from './components/EditPanel'
+import { QuickAddEConversationsDialog } from './components/QuickAddEConversationsDialog'
 
 export default function App() {
   const [conversations, setConversations] = useState<ConversationFile | null>(null)
@@ -13,6 +14,9 @@ export default function App() {
   const [exportName, setExportName] = useState<string>('')
   const [parseError, setParseError] = useState<string | null>(null)
   const [baseUrl, setBaseUrl] = useState('http://localhost:3000')
+  const [uploadConfirm, setUploadConfirm] = useState(false)
+  const [uploadStatus, setUploadStatus] = useState<{ ok: boolean; message: string } | null>(null)
+  const [showQuickAddE, setShowQuickAddE] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   function handleExport() {
@@ -25,6 +29,33 @@ export default function App() {
     a.download = exportName || fileName
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  async function handleUpload() {
+    if (!conversations || !fileName) return
+    setUploadConfirm(false)
+    setUploadStatus(null)
+    const yaml = exportYaml(conversations)
+    const blob = new Blob([yaml], { type: 'text/yaml' })
+    const targetName = exportName || fileName
+    const form = new FormData()
+    form.append('file', blob, targetName)
+    form.append('filename', targetName)
+    try {
+      const res = await fetch(`${baseUrl}/api/v1/assets/upload_conversation_yml`, {
+        method: 'POST',
+        body: form,
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setUploadStatus({ ok: true, message: `Saved to ${data.path}` })
+      } else {
+        const text = await res.text()
+        setUploadStatus({ ok: false, message: `Upload failed (${res.status}): ${text}` })
+      }
+    } catch (err) {
+      setUploadStatus({ ok: false, message: `Upload error: ${err instanceof Error ? err.message : String(err)}` })
+    }
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -174,6 +205,34 @@ export default function App() {
     // keep selectedIndex pointing at convA; convB is at selectedIndex + 1
   }
 
+  function handleQuickAddEConversations(paths: string[]) {
+    const newConvs: Conversation[] = paths.map(path => ({
+      background_url: path,
+      chats: [{ role: 'other' as const, content: '(...)' }],
+    }))
+    setConversations(prev => prev ? [...prev, ...newConvs] : newConvs)
+    setShowQuickAddE(false)
+  }
+
+  function handleMergeWithPrev() {
+    if (!conversations) return
+    if (selectedIndex === 0) return
+    const prev = conversations[selectedIndex - 1]
+    const curr = conversations[selectedIndex]
+    const merged: Conversation = {
+      ...prev,
+      chats: [...prev.chats, ...curr.chats],
+    }
+    const next = [
+      ...conversations.slice(0, selectedIndex - 1),
+      merged,
+      ...conversations.slice(selectedIndex + 1),
+    ]
+    setConversations(next)
+    setSelectedIndex(selectedIndex - 1)
+    setSelectedChatIndex(prev.chats.length) // first chat from the merged-in block
+  }
+
   if (!conversations) {
     return (
       <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col items-center justify-center gap-6">
@@ -231,6 +290,18 @@ export default function App() {
           >
             Export YAML
           </button>
+          <button
+            onClick={() => setShowQuickAddE(true)}
+            className="px-3 py-1 bg-indigo-700 hover:bg-indigo-600 text-white text-xs rounded transition-colors"
+          >
+            Quick Add E-Convs
+          </button>
+          <button
+            onClick={() => setUploadConfirm(true)}
+            className="px-3 py-1 bg-green-700 hover:bg-green-600 text-white text-xs rounded transition-colors"
+          >
+            Upload to Backend
+          </button>
         </div>
         <button
           onClick={() => fileInputRef.current?.click()}
@@ -287,6 +358,60 @@ export default function App() {
           )}
         </div>
 
+        {/* Quick Add E-Conversations dialog */}
+        {showQuickAddE && (
+          <QuickAddEConversationsDialog
+            baseUrl={baseUrl}
+            onAdd={handleQuickAddEConversations}
+            onClose={() => setShowQuickAddE(false)}
+          />
+        )}
+
+        {/* Upload confirmation modal */}
+        {uploadConfirm && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+            <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-80 flex flex-col gap-4 shadow-xl">
+              <p className="text-sm text-gray-200 font-semibold">Upload to backend?</p>
+              <p className="text-xs text-gray-400">
+                This will write <span className="text-gray-200 font-mono">{exportName || fileName}</span> to{' '}
+                <span className="text-gray-200">db/seeds/conversations/</span> on{' '}
+                <span className="text-gray-200">{baseUrl}</span>.
+              </p>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => setUploadConfirm(false)}
+                  className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs rounded transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpload}
+                  className="px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white text-xs rounded transition-colors"
+                >
+                  Upload
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Upload status toast */}
+        {uploadStatus && (
+          <div
+            className={`fixed bottom-4 right-4 z-50 px-4 py-2.5 rounded-lg text-xs shadow-lg flex items-center gap-3 ${
+              uploadStatus.ok ? 'bg-green-800 text-green-100' : 'bg-red-900 text-red-200'
+            }`}
+          >
+            <span>{uploadStatus.message}</span>
+            <button
+              onClick={() => setUploadStatus(null)}
+              className="text-current opacity-60 hover:opacity-100 font-bold leading-none"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* Right panel — edit panel */}
         <div className="w-72 shrink-0 border-l border-gray-700 bg-gray-900 flex flex-col">
           {selectedChat && selectedConv ? (
@@ -298,6 +423,8 @@ export default function App() {
               onChange={handleChatChange}
               onConversationChange={handleConversationChange}
               onSplitHere={handleSplitHere}
+              onMergeWithPrev={handleMergeWithPrev}
+              hasPrevConversation={selectedIndex > 0}
               onAddChat={handleAddChat}
               onDeleteChat={handleDeleteChat}
             />

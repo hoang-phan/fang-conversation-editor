@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { Chat } from '../types'
 
 interface Props {
-  onAdd: (chat: Chat) => void
+  onAdd: (chat: Chat, keepOpen: boolean) => void
   onClose: () => void
 }
 
@@ -49,22 +49,22 @@ export function AddChatDialog({ onAdd, onClose }: Props) {
   const [options, setOptions] = useState<string[]>(['Correct answer', 'Wrong option'])
   const [newOption, setNewOption] = useState('')
 
-  function handlePickType(type: BlockType) {
+  function handlePickType(type: BlockType, e: React.MouseEvent) {
     setSelectedType(type)
     const def = BLOCKS.find(b => b.type === type)!
     if (!def.hasArgs) {
-      // No args needed — go straight to confirm
       const content = buildContent(type, '', [])
-      onAdd({ role, content })
+      const keepOpen = e.metaKey || e.ctrlKey
+      onAdd({ role, content }, keepOpen)
     } else {
       setStep('args')
     }
   }
 
-  function handleConfirm() {
+  function handleConfirm(keepOpen = false) {
     if (selectedType === 'multichoice' && options.length < 2) return
     const content = buildContent(selectedType, args.trim(), options)
-    onAdd({ role, content })
+    onAdd({ role, content }, keepOpen)
   }
 
   function addOption() {
@@ -120,11 +120,11 @@ export function AddChatDialog({ onAdd, onClose }: Props) {
         {/* Step: pick block type */}
         {step === 'pick' && (
           <div className="px-4 py-3 flex flex-col gap-1.5">
-            <p className="text-xs text-gray-500 mb-1">Choose chat type:</p>
+            <p className="text-xs text-gray-500 mb-1">Choose chat type: <span className="text-gray-600">· Hold ⌘/Ctrl to add multiple without closing</span></p>
             {BLOCKS.map(def => (
               <button
                 key={def.type}
-                onClick={() => handlePickType(def.type)}
+                onClick={e => handlePickType(def.type, e)}
                 className="text-left px-3 py-2.5 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-pink-600 transition-colors flex flex-col gap-0.5"
               >
                 <span className="text-sm text-gray-100 font-mono">{def.label}</span>
@@ -232,7 +232,7 @@ export function AddChatDialog({ onAdd, onClose }: Props) {
           </button>
           {step === 'args' && (
             <button
-              onClick={handleConfirm}
+              onClick={e => handleConfirm(e.metaKey || e.ctrlKey)}
               disabled={selectedType === 'multichoice' && options.length < 2}
               className="text-xs px-4 py-1.5 rounded bg-pink-600 hover:bg-pink-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold transition-colors"
             >

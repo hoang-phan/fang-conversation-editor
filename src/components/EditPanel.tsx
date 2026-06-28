@@ -8,14 +8,16 @@ interface Props {
   chat: Chat
   chatIndex: number
   baseUrl: string
+  hasPrevConversation: boolean
   onChange: (updated: Chat) => void
   onConversationChange: (updated: Conversation) => void
   onSplitHere: (chatIndex: number) => void
+  onMergeWithPrev: () => void
   onAddChat: (chat: Chat, insertAt: number) => void
   onDeleteChat: (chatIndex: number) => void
 }
 
-export function EditPanel({ conversation, chat, chatIndex, baseUrl, onChange, onConversationChange, onSplitHere, onAddChat, onDeleteChat }: Props) {
+export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConversation, onChange, onConversationChange, onSplitHere, onMergeWithPrev, onAddChat, onDeleteChat }: Props) {
   const [showAddChat, setShowAddChat] = useState(false)
   const [addChatInsertAt, setAddChatInsertAt] = useState(0)
   const [pickerTarget, setPickerTarget] = useState<'new' | number | 'background' | null>(null)
@@ -167,6 +169,16 @@ export function EditPanel({ conversation, chat, chatIndex, baseUrl, onChange, on
           >
             Split after this chat
           </button>
+          <button
+            onClick={() => {
+              if (window.confirm('Merge this conversation into the previous one? This conversation will be removed.')) onMergeWithPrev()
+            }}
+            disabled={!hasPrevConversation}
+            className="text-xs px-3 py-1.5 rounded bg-indigo-800 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors text-left"
+            title="Append all chats from this conversation to the end of the previous one, then remove this conversation"
+          >
+            Merge into previous
+          </button>
         </div>
 
         {/* Role */}
@@ -286,7 +298,7 @@ export function EditPanel({ conversation, chat, chatIndex, baseUrl, onChange, on
       {/* Add chat dialog */}
       {showAddChat && (
         <AddChatDialog
-          onAdd={chat => { onAddChat(chat, addChatInsertAt); setShowAddChat(false) }}
+          onAdd={(chat, keepOpen) => { onAddChat(chat, addChatInsertAt); if (!keepOpen) setShowAddChat(false) }}
           onClose={() => setShowAddChat(false)}
         />
       )}
