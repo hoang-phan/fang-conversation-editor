@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Chat, Conversation, ConversationFile } from './types'
 import { parseYaml, exportYaml } from './parse'
 import { ConversationList } from './components/ConversationList'
@@ -53,6 +53,65 @@ export default function App() {
 
   const selectedConv = conversations?.[selectedIndex] ?? null
   const selectedChat = selectedConv?.chats[selectedChatIndex] ?? null
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const mod = e.metaKey || e.ctrlKey
+      if (!mod) return
+
+      const tag = (e.target as HTMLElement).tagName
+      const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable
+
+      if (e.key === 'o' || e.key === 'O') {
+        e.preventDefault()
+        fileInputRef.current?.click()
+        return
+      }
+
+      if (e.key === 's' || e.key === 'S') {
+        e.preventDefault()
+        if (!conversations || !fileName) return
+        const yaml = exportYaml(conversations)
+        const blob = new Blob([yaml], { type: 'text/yaml' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = exportName || fileName
+        a.click()
+        URL.revokeObjectURL(url)
+        return
+      }
+
+      if (isTyping) return
+
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        if (!conversations) return
+        if (selectedChatIndex > 0) {
+          setSelectedChatIndex(selectedChatIndex - 1)
+        } else if (selectedIndex > 0) {
+          const prevIdx = selectedIndex - 1
+          setSelectedIndex(prevIdx)
+          setSelectedChatIndex(conversations[prevIdx].chats.length - 1)
+        }
+      }
+
+      if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        if (!conversations) return
+        const chatCount = conversations[selectedIndex].chats.length
+        if (selectedChatIndex < chatCount - 1) {
+          setSelectedChatIndex(selectedChatIndex + 1)
+        } else if (selectedIndex < conversations.length - 1) {
+          setSelectedIndex(selectedIndex + 1)
+          setSelectedChatIndex(0)
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [conversations, selectedIndex, selectedChatIndex, fileName, exportName])
 
   function handleChatChange(updated: Chat) {
     if (!conversations) return
