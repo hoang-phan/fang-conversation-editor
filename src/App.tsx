@@ -5,6 +5,7 @@ import { ConversationList } from './components/ConversationList'
 import { ConversationPreview } from './components/ConversationPreview'
 import { EditPanel } from './components/EditPanel'
 import { QuickAddEConversationsDialog } from './components/QuickAddEConversationsDialog'
+import { DuplicateForAssetsDialog } from './components/DuplicateForAssetsDialog'
 import { ScriptImportDialog } from './components/ScriptImportDialog'
 
 export default function App() {
@@ -18,6 +19,7 @@ export default function App() {
   const [uploadConfirm, setUploadConfirm] = useState(false)
   const [uploadStatus, setUploadStatus] = useState<{ ok: boolean; message: string } | null>(null)
   const [showQuickAddE, setShowQuickAddE] = useState(false)
+  const [showDuplicateForAssets, setShowDuplicateForAssets] = useState(false)
   const [showScriptImport, setShowScriptImport] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -216,6 +218,26 @@ export default function App() {
     setShowQuickAddE(false)
   }
 
+  function handleDuplicateForAssets(paths: string[]) {
+    if (!conversations) return
+    const source = conversations[selectedIndex]
+    const clones: Conversation[] = paths.map(path => ({
+      ...source,
+      background_url: path,
+      chats: source.chats.map(chat => ({
+        ...chat,
+        sprites: chat.sprites ? chat.sprites.map(s => ({ ...s })) : undefined,
+      })),
+    }))
+    const next = [
+      ...conversations.slice(0, selectedIndex + 1),
+      ...clones,
+      ...conversations.slice(selectedIndex + 1),
+    ]
+    setConversations(next)
+    setShowDuplicateForAssets(false)
+  }
+
   function handleMergeWithPrev() {
     if (!conversations) return
     if (selectedIndex === 0) return
@@ -327,6 +349,14 @@ export default function App() {
             Quick Add E-Convs
           </button>
           <button
+            onClick={() => setShowDuplicateForAssets(true)}
+            disabled={!selectedConv}
+            className="px-3 py-1 bg-indigo-700 hover:bg-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs rounded transition-colors"
+            title="Duplicate the selected conversation once per chosen video/image asset"
+          >
+            Duplicate for Assets
+          </button>
+          <button
             onClick={() => setUploadConfirm(true)}
             className="px-3 py-1 bg-green-700 hover:bg-green-600 text-white text-xs rounded transition-colors"
           >
@@ -410,6 +440,15 @@ export default function App() {
             baseUrl={baseUrl}
             onAdd={handleQuickAddEConversations}
             onClose={() => setShowQuickAddE(false)}
+          />
+        )}
+
+        {/* Duplicate for Assets dialog */}
+        {showDuplicateForAssets && (
+          <DuplicateForAssetsDialog
+            baseUrl={baseUrl}
+            onConfirm={handleDuplicateForAssets}
+            onClose={() => setShowDuplicateForAssets(false)}
           />
         )}
 
