@@ -15,9 +15,11 @@ interface Props {
   onMergeWithPrev: () => void
   onAddChat: (chat: Chat, insertAt: number) => void
   onDeleteChat: (chatIndex: number) => void
+  onDeleteConversation: () => void
+  canDeleteConversation: boolean
 }
 
-export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConversation, onChange, onConversationChange, onSplitHere, onMergeWithPrev, onAddChat, onDeleteChat }: Props) {
+export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConversation, onChange, onConversationChange, onSplitHere, onMergeWithPrev, onAddChat, onDeleteChat, onDeleteConversation, canDeleteConversation }: Props) {
   const [showAddChat, setShowAddChat] = useState(false)
   const [addChatInsertAt, setAddChatInsertAt] = useState(0)
   const [pickerTarget, setPickerTarget] = useState<'new' | number | 'background' | null>(null)
@@ -178,6 +180,16 @@ export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConve
             title="Append all chats from this conversation to the end of the previous one, then remove this conversation"
           >
             Merge into previous
+          </button>
+          <button
+            onClick={() => {
+              if (window.confirm('Delete this entire conversation? This cannot be undone.')) onDeleteConversation()
+            }}
+            disabled={!canDeleteConversation}
+            className="text-xs px-3 py-1.5 rounded bg-red-900/60 hover:bg-red-800 disabled:opacity-40 disabled:cursor-not-allowed text-red-300 transition-colors text-left"
+            title="Delete this whole conversation"
+          >
+            Delete conversation
           </button>
         </div>
 

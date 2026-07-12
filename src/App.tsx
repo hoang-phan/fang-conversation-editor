@@ -257,6 +257,33 @@ export default function App() {
     setSelectedChatIndex(prev.chats.length) // first chat from the merged-in block
   }
 
+  function handleDeleteConversation() {
+    if (!conversations) return
+    if (conversations.length <= 1) return // don't delete the last conversation
+    const next = conversations.filter((_, i) => i !== selectedIndex)
+    setConversations(next)
+    const newIndex = Math.min(selectedIndex, next.length - 1)
+    setSelectedIndex(newIndex)
+    setSelectedChatIndex(0)
+  }
+
+  function handleReorderConversations(fromIndex: number, toIndex: number) {
+    if (!conversations) return
+    if (fromIndex === toIndex) return
+    const next = [...conversations]
+    const [moved] = next.splice(fromIndex, 1)
+    next.splice(toIndex, 0, moved)
+    setConversations(next)
+
+    if (selectedIndex === fromIndex) {
+      setSelectedIndex(toIndex)
+    } else if (fromIndex < selectedIndex && toIndex >= selectedIndex) {
+      setSelectedIndex(selectedIndex - 1)
+    } else if (fromIndex > selectedIndex && toIndex <= selectedIndex) {
+      setSelectedIndex(selectedIndex + 1)
+    }
+  }
+
   if (!conversations) {
     return (
       <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col items-center justify-center gap-6">
@@ -387,6 +414,7 @@ export default function App() {
             selectedIndex={selectedIndex}
             baseUrl={baseUrl}
             onSelect={i => { setSelectedIndex(i) }}
+            onReorder={handleReorderConversations}
           />
         </div>
 
@@ -512,6 +540,8 @@ export default function App() {
               hasPrevConversation={selectedIndex > 0}
               onAddChat={handleAddChat}
               onDeleteChat={handleDeleteChat}
+              onDeleteConversation={handleDeleteConversation}
+              canDeleteConversation={conversations.length > 1}
             />
           ) : (
             <div className="flex-1 flex items-center justify-center text-gray-600 text-xs text-center px-4">

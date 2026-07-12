@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Conversation } from '../types'
 
 interface Props {
@@ -5,9 +6,21 @@ interface Props {
   selectedIndex: number
   baseUrl: string
   onSelect: (index: number) => void
+  onReorder: (fromIndex: number, toIndex: number) => void
 }
 
-export function ConversationList({ conversations, selectedIndex, baseUrl, onSelect }: Props) {
+export function ConversationList({ conversations, selectedIndex, baseUrl, onSelect, onReorder }: Props) {
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [overIndex, setOverIndex] = useState<number | null>(null)
+
+  function handleDrop(dropIndex: number) {
+    if (dragIndex !== null && dragIndex !== dropIndex) {
+      onReorder(dragIndex, dropIndex)
+    }
+    setDragIndex(null)
+    setOverIndex(null)
+  }
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="px-3 py-2 border-b border-gray-700 shrink-0">
@@ -23,12 +36,19 @@ export function ConversationList({ conversations, selectedIndex, baseUrl, onSele
             : null
           const isVideo = bgUrl?.endsWith('.mp4')
           const previewCount = conv.chats.length
+          const isDragging = i === dragIndex
+          const isDropTarget = i === overIndex && dragIndex !== null && dragIndex !== i
 
           return (
             <button
               key={i}
+              draggable
               onClick={() => onSelect(i)}
-              className={`w-full text-left px-3 py-2 border-b border-gray-800 transition-colors hover:bg-gray-800 flex items-center gap-2 ${isSelected ? 'bg-gray-800 border-l-2 border-l-pink-400' : ''}`}
+              onDragStart={() => setDragIndex(i)}
+              onDragEnd={() => { setDragIndex(null); setOverIndex(null) }}
+              onDragOver={e => { e.preventDefault(); setOverIndex(i) }}
+              onDrop={e => { e.preventDefault(); handleDrop(i) }}
+              className={`w-full text-left px-3 py-2 border-b border-gray-800 transition-colors hover:bg-gray-800 flex items-center gap-2 cursor-grab active:cursor-grabbing ${isSelected ? 'bg-gray-800 border-l-2 border-l-pink-400' : ''} ${isDragging ? 'opacity-40' : ''} ${isDropTarget ? 'border-t-2 border-t-pink-400' : ''}`}
             >
               {bgUrl && !isVideo && (
                 <img
