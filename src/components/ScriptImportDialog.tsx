@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { parseYaml } from '../parse'
 import type { Conversation } from '../types'
-
-interface OpponentOption {
-  id: string
-  name: string
-  giftNames: string[]
-}
-
-type ConvType = 'chat' | 'gift' | 'cinematic'
+import {
+  convertScript,
+  fetchEditorCharacters,
+  fetchEditorMeta,
+  type CharacterSlot,
+  type EditorCharacter,
+  type EditorMeta,
+} from '../api'
 
 interface Props {
   baseUrl: string
@@ -21,47 +21,70 @@ export function ScriptImportDialog({ baseUrl, onImport, onClose }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const [opponents, setOpponents] = useState<OpponentOption[]>([])
-  const [opponentsLoading, setOpponentsLoading] = useState(true)
-  const [opponentsError, setOpponentsError] = useState<string | null>(null)
+  const [meta, setMeta] = useState<EditorMeta | null>(null)
+  const [characters, setCharacters] = useState<EditorCharacter[]>([])
+  const [charsLoading, setCharsLoading] = useState(true)
+  const [charsError, setCharsError] = useState<string | null>(null)
 
-  const [selectedOpponent, setSelectedOpponent] = useState<string>('')
-  const [convType, setConvType] = useState<ConvType>('chat')
-  const [selectedGift, setSelectedGift] = useState<string>('')
-  const [cinematicLevel, setCinematicLevel] = useState<number>(1)
+  const [selectedCharacterId, setSelectedCharacterId] = useState('')
+  const [selectedSlotKey, setSelectedSlotKey] = useState('')
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
-    fetch(`${baseUrl}/api/v1/opponent_options`)
-      .then(r => r.json())
-      .then((data: OpponentOption[]) => {
-        setOpponents(data)
-        if (data.length > 0) {
-          setSelectedOpponent(data[0].id)
-          setSelectedGift(data[0].giftNames[0] ?? '')
+    let cancelled = false
+    setCharsLoading(true)
+    setCharsError(null)
+
+    Promise.all([fetchEditorMeta(baseUrl), fetchEditorCharacters(baseUrl)])
+      .then(([metaData, chars]) => {
+        if (cancelled) return
+        setMeta(metaData)
+        setCharacters(chars)
+        if (chars.length > 0) {
+          setSelectedCharacterId(chars[0].id)
+          setSelectedSlotKey(chars[0].slots[0]?.key ?? '')
         }
-        setOpponentsLoading(false)
+        setCharsLoading(false)
       })
       .catch(err => {
-        setOpponentsError(err instanceof Error ? err.message : String(err))
-        setOpponentsLoading(false)
+        if (cancelled) return
+        setCharsError(err instanceof Error ? err.message : String(err))
+        setCharsLoading(false)
       })
+
+    return () => { cancelled = true }
   }, [baseUrl])
 
-  // When opponent changes, reset gift to first gift of new opponent
-  function handleOpponentChange(id: string) {
-    setSelectedOpponent(id)
-    const opp = opponents.find(o => o.id === id)
-    setSelectedGift(opp?.giftNames[0] ?? '')
+  const currentCharacter = characters.find(c => c.id === selectedCharacterId)
+  const slots = currentCharacter?.slots ?? []
+
+  const slotsByKind = useMemo(() => {
+    const map = new Map<string, CharacterSlot[]>()
+    for (const slot of slots) {
+      const list = map.get(slot.kind) ?? []
+      list.push(slot)
+      map.set(slot.kind, list)
+    }
+    return map
+  }, [slots])
+
+  const selectedSlot = slots.find(s => s.key === selectedSlotKey) ?? slots[0] ?? null
+  const selectedKind = selectedSlot?.kind ?? meta?.slotKinds[0] ?? ''
+
+  function handleCharacterChange(id: string) {
+    setSelectedCharacterId(id)
+    const character = characters.find(c => c.id === id)
+    setSelectedSlotKey(character?.slots[0]?.key ?? '')
+  }
+
+  function handleKindChange(kind: string) {
+    const kindSlots = slotsByKind.get(kind) ?? []
+    setSelectedSlotKey(kindSlots[0]?.key ?? '')
   }
 
   function computeFilename(): string {
-    if (!selectedOpponent) return 'imported-script.yml'
-    if (convType === 'chat') return `${selectedOpponent}-conversations.yml`
-    if (convType === 'gift') return `${selectedOpponent}-gift-${selectedGift || 'unknown'}.yml`
-    if (convType === 'cinematic') return `${selectedOpponent}-cinematic-${cinematicLevel}.yml`
-    return 'imported-script.yml'
+    return selectedSlot?.filename ?? 'imported-script.yml'
   }
 
   async function handleConvert() {
@@ -69,16 +92,7 @@ export function ScriptImportDialog({ baseUrl, onImport, onClose }: Props) {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`${baseUrl}/api/v1/scripts/convert`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      })
-      if (!res.ok) {
-        const body = await res.text()
-        throw new Error(`Server error (${res.status}): ${body}`)
-      }
-      const yamlText = await res.text()
+      const yamlText = await convertScript(baseUrl, text)
       const conversations = parseYaml(yamlText)
       onImport(conversations, computeFilename())
     } catch (err) {
@@ -92,7 +106,12 @@ export function ScriptImportDialog({ baseUrl, onImport, onClose }: Props) {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleConvert()
   }
 
-  const currentOpponent = opponents.find(o => o.id === selectedOpponent)
+  const characterLabel = meta?.characterLabel ?? 'Character'
+  const kindOptions = meta?.slotKinds?.length
+    ? meta.slotKinds.filter(k => slotsByKind.has(k) || slots.some(s => s.kind === k))
+    : [...slotsByKind.keys()]
+
+  const kindSlots = slotsByKind.get(selectedKind) ?? []
 
   return (
     <div
@@ -116,93 +135,65 @@ export function ScriptImportDialog({ baseUrl, onImport, onClose }: Props) {
             <span className="text-gray-300 font-mono">other</span> lines. The result replaces the current editor content.
           </p>
 
-          {/* File name inputs */}
           <div className="bg-gray-800/60 border border-gray-700 rounded-lg p-3 flex flex-col gap-3">
             <p className="text-xs font-medium text-gray-300">Output file name</p>
 
-            {opponentsLoading ? (
-              <p className="text-xs text-gray-500">Loading opponents…</p>
-            ) : opponentsError ? (
-              <p className="text-xs text-red-400">Failed to load opponents: {opponentsError}</p>
+            {charsLoading ? (
+              <p className="text-xs text-gray-500">Loading {characterLabel.toLowerCase()}s…</p>
+            ) : charsError ? (
+              <p className="text-xs text-red-400">Failed to load characters: {charsError}</p>
             ) : (
               <div className="flex flex-col gap-2">
-                {/* Opponent */}
                 <div className="flex items-center gap-2">
-                  <label className="text-xs text-gray-400 w-24 shrink-0">Opponent</label>
+                  <label className="text-xs text-gray-400 w-24 shrink-0">{characterLabel}</label>
                   <select
-                    value={selectedOpponent}
-                    onChange={e => handleOpponentChange(e.target.value)}
+                    value={selectedCharacterId}
+                    onChange={e => handleCharacterChange(e.target.value)}
                     className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-pink-500"
                   >
-                    {opponents.map(o => (
-                      <option key={o.id} value={o.id}>{o.name}</option>
+                    {characters.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>
                 </div>
 
-                {/* Type */}
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-gray-400 w-24 shrink-0">Type</label>
-                  <div className="flex gap-2">
-                    {(['chat', 'gift', 'cinematic'] as ConvType[]).map(t => (
-                      <button
-                        key={t}
-                        onClick={() => setConvType(t)}
-                        className={`px-3 py-1 text-xs rounded transition-colors ${
-                          convType === t
-                            ? 'bg-pink-600 text-white'
-                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                        }`}
-                      >
-                        {t.charAt(0).toUpperCase() + t.slice(1)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Gift selector */}
-                {convType === 'gift' && (
+                {kindOptions.length > 0 && (
                   <div className="flex items-center gap-2">
-                    <label className="text-xs text-gray-400 w-24 shrink-0">Gift</label>
-                    {currentOpponent && currentOpponent.giftNames.length > 0 ? (
-                      <select
-                        value={selectedGift}
-                        onChange={e => setSelectedGift(e.target.value)}
-                        className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-pink-500"
-                      >
-                        {currentOpponent.giftNames.map(g => (
-                          <option key={g} value={g}>{g}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span className="text-xs text-gray-500 italic">No gifts for this opponent</span>
-                    )}
-                  </div>
-                )}
-
-                {/* Cinematic level */}
-                {convType === 'cinematic' && (
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-gray-400 w-24 shrink-0">Level</label>
-                    <div className="flex gap-1">
-                      {[1, 2, 3, 4, 5].map(n => (
+                    <label className="text-xs text-gray-400 w-24 shrink-0">Type</label>
+                    <div className="flex flex-wrap gap-2">
+                      {kindOptions.map(kind => (
                         <button
-                          key={n}
-                          onClick={() => setCinematicLevel(n)}
-                          className={`w-8 h-8 text-xs rounded transition-colors ${
-                            cinematicLevel === n
+                          key={kind}
+                          type="button"
+                          onClick={() => handleKindChange(kind)}
+                          className={`px-3 py-1 text-xs rounded transition-colors ${
+                            selectedKind === kind
                               ? 'bg-pink-600 text-white'
                               : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                           }`}
                         >
-                          {n}
+                          {kind.charAt(0).toUpperCase() + kind.slice(1)}
                         </button>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Computed filename preview */}
+                {kindSlots.length > 1 && (
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-gray-400 w-24 shrink-0">Slot</label>
+                    <select
+                      value={selectedSlot?.key ?? ''}
+                      onChange={e => setSelectedSlotKey(e.target.value)}
+                      className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-pink-500"
+                    >
+                      {kindSlots.map(slot => (
+                        <option key={slot.key} value={slot.key}>{slot.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <div className="flex items-center gap-2 pt-1 border-t border-gray-700">
                   <label className="text-xs text-gray-400 w-24 shrink-0">Filename</label>
                   <span className="text-xs font-mono text-green-400">{computeFilename()}</span>
@@ -211,7 +202,6 @@ export function ScriptImportDialog({ baseUrl, onImport, onClose }: Props) {
             )}
           </div>
 
-          {/* Script textarea */}
           <textarea
             ref={textareaRef}
             value={text}

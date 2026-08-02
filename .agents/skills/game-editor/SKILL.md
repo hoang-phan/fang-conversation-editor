@@ -6,7 +6,7 @@ argument-hint: '[brief description of the task]'
 
 # Game Editor Skill
 
-You are working on `fang-conversation-editor`, a standalone browser tool for editing conversation YAML files used by `fang-backend` and rendered in the `fang` frontend.
+You are working on `fang-conversation-editor`, a standalone browser tool for editing conversation YAML files used by `fang-backend` and `empire-backend` (via the shared `conversation_editor` gem) and rendered in the game frontends.
 
 ## Steps
 
@@ -22,7 +22,7 @@ You are working on `fang-conversation-editor`, a standalone browser tool for edi
 
 3. **Locate relevant source files using the File Map.** Read the specific files before editing them.
 
-4. **For any task involving a backend API call, read `fang-backend/docs/api.md` first.** It documents all available endpoints — don't scan the backend source or guess at routes. The relevant endpoint for conversation uploads is `POST /api/v1/assets/upload_conversation_yml`.
+4. **For any task involving a backend API call, read the host `docs/api.md` first** (`fang-backend` or `empire-backend`). Prefer `/api/v1/editor/*` (meta, characters, assets, scripts). Legacy fang aliases (`/opponent_options`, `/assets`, `/scripts/convert`) still exist but the editor uses the shared editor routes. Upload: `POST /api/v1/editor/assets/upload_conversation_yml`.
 
 5. **Check the fang reference implementation when rendering fidelity is in question.** The ground truth for how conversations render is:
    - `fang/src/components/Reward/ConversationOverlay.tsx` — main renderer (background, sprite area, mode detection)
@@ -50,7 +50,8 @@ You are working on `fang-conversation-editor`, a standalone browser tool for edi
 | File | Responsibility |
 |------|---------------|
 | `EDITOR_DESIGN.md` | Authoritative design — read first |
-| `src/App.tsx` | Top-level layout, file load state |
+| `src/api.ts` | Server profiles + `/api/v1/editor/*` helpers |
+| `src/App.tsx` | Top-level layout, file load state, server picker |
 | `src/types.ts` | TypeScript interfaces |
 | `src/parse.ts` | YAML load/validate/export |
 | `src/components/ConversationList.tsx` | Left panel |
@@ -58,7 +59,7 @@ You are working on `fang-conversation-editor`, a standalone browser tool for edi
 | `src/components/ChatBubble.tsx` | Single chat render |
 | `src/components/SpriteLayer.tsx` | Sprite overlay |
 | `src/components/EditPanel.tsx` | Right panel form editor (chat fields + conversation background) |
-| `src/components/AssetPickerDialog.tsx` | Modal for browsing backend assets (`/api/v1/assets`); used by EditPanel to pick sprite and background URLs |
+| `src/components/AssetPickerDialog.tsx` | Modal for browsing backend assets (`/api/v1/editor/assets`); used by EditPanel to pick sprite and background URLs |
 | `src/components/YamlPreview.tsx` | Raw YAML preview |
 
 ## Key constraints (never violate)

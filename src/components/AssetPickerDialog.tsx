@@ -19,7 +19,7 @@ export function AssetPickerDialog({ baseUrl, onSelect, onClose, title = 'Add Spr
   useEffect(() => {
     searchRef.current?.focus()
     setLoading(true)
-    fetch(`${baseUrl}/api/v1/assets`)
+    fetch(`${baseUrl}/api/v1/editor/assets`)
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return r.json() as Promise<string[]>

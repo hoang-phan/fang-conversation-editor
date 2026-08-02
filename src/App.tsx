@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Chat, Conversation, ConversationFile } from './types'
 import { parseYaml, exportYaml } from './parse'
+import { SERVER_PROFILES, uploadConversationYml } from './api'
 import { ConversationList } from './components/ConversationList'
 import { ConversationPreview } from './components/ConversationPreview'
 import { EditPanel } from './components/EditPanel'
@@ -15,13 +16,17 @@ export default function App() {
   const [fileName, setFileName] = useState<string | null>(null)
   const [exportName, setExportName] = useState<string>('')
   const [parseError, setParseError] = useState<string | null>(null)
-  const [baseUrl, setBaseUrl] = useState('http://localhost:3000')
+  const [serverProfileId, setServerProfileId] = useState('fang')
+  const [customBaseUrl, setCustomBaseUrl] = useState('http://localhost:3001')
   const [uploadConfirm, setUploadConfirm] = useState(false)
   const [uploadStatus, setUploadStatus] = useState<{ ok: boolean; message: string } | null>(null)
   const [showQuickAddE, setShowQuickAddE] = useState(false)
   const [showDuplicateForAssets, setShowDuplicateForAssets] = useState(false)
   const [showScriptImport, setShowScriptImport] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const activeProfile = SERVER_PROFILES.find(p => p.id === serverProfileId) ?? SERVER_PROFILES[0]
+  const baseUrl = serverProfileId === 'custom' ? customBaseUrl : activeProfile.baseUrl
 
   function handleExport() {
     if (!conversations || !fileName) return
@@ -40,25 +45,12 @@ export default function App() {
     setUploadConfirm(false)
     setUploadStatus(null)
     const yaml = exportYaml(conversations)
-    const blob = new Blob([yaml], { type: 'text/yaml' })
     const targetName = exportName || fileName
-    const form = new FormData()
-    form.append('file', blob, targetName)
-    form.append('filename', targetName)
     try {
-      const res = await fetch(`${baseUrl}/api/v1/assets/upload_conversation_yml`, {
-        method: 'POST',
-        body: form,
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setUploadStatus({ ok: true, message: `Saved to ${data.path}` })
-      } else {
-        const text = await res.text()
-        setUploadStatus({ ok: false, message: `Upload failed (${res.status}): ${text}` })
-      }
+      const data = await uploadConversationYml(baseUrl, targetName, yaml)
+      setUploadStatus({ ok: true, message: `Saved to ${data.path}` })
     } catch (err) {
-      setUploadStatus({ ok: false, message: `Upload error: ${err instanceof Error ? err.message : String(err)}` })
+      setUploadStatus({ ok: false, message: err instanceof Error ? err.message : String(err) })
     }
   }
 
@@ -288,6 +280,30 @@ export default function App() {
     return (
       <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col items-center justify-center gap-6">
         <h1 className="text-3xl font-bold text-pink-400">Fang Conversation Editor</h1>
+        <label className="text-xs text-gray-400 flex items-center gap-2">
+          Server
+          <select
+            value={serverProfileId}
+            onChange={e => setServerProfileId(e.target.value)}
+            className="bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-gray-200"
+          >
+            {SERVER_PROFILES.map(p => (
+              <option key={p.id} value={p.id}>{p.label}</option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs text-gray-400 flex items-center gap-2">
+          Base URL
+          <input
+            type="text"
+            value={baseUrl}
+            onChange={e => {
+              setServerProfileId('custom')
+              setCustomBaseUrl(e.target.value)
+            }}
+            className="bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-gray-200 w-52"
+          />
+        </label>
         <p className="text-gray-400 text-sm">Load a conversation YAML file to get started.</p>
         {parseError && (
           <div className="bg-red-900/40 border border-red-700 text-red-300 px-4 py-2 rounded text-sm max-w-md text-center">
@@ -340,15 +356,6 @@ export default function App() {
         <span className="text-pink-400 font-bold text-sm">Fang Conversation Editor</span>
         <span className="text-gray-500 text-xs">{fileName}</span>
         <div className="flex-1" />
-        <label className="text-xs text-gray-400 flex items-center gap-2">
-          Base URL
-          <input
-            type="text"
-            value={baseUrl}
-            onChange={e => setBaseUrl(e.target.value)}
-            className="bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-gray-200 w-52"
-          />
-        </label>
         <div className="flex items-center gap-1">
           <input
             type="text"

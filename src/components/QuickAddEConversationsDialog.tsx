@@ -16,7 +16,7 @@ export function QuickAddEConversationsDialog({ baseUrl, onAdd, onClose }: Props)
 
   useEffect(() => {
     searchRef.current?.focus()
-    fetch(`${baseUrl}/api/v1/assets`)
+    fetch(`${baseUrl}/api/v1/editor/assets`)
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return r.json() as Promise<string[]>
