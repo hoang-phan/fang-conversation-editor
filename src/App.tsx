@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Chat, Conversation, ConversationFile } from './types'
 import { parseYaml, exportYaml } from './parse'
 import { SERVER_PROFILES, uploadConversationYml } from './api'
@@ -8,6 +8,7 @@ import { EditPanel } from './components/EditPanel'
 import { QuickAddEConversationsDialog } from './components/QuickAddEConversationsDialog'
 import { DuplicateForAssetsDialog } from './components/DuplicateForAssetsDialog'
 import { ScriptImportDialog } from './components/ScriptImportDialog'
+import { ConversationPickerDialog } from './components/ConversationPickerDialog'
 
 export default function App() {
   const [conversations, setConversations] = useState<ConversationFile | null>(null)
@@ -23,7 +24,7 @@ export default function App() {
   const [showQuickAddE, setShowQuickAddE] = useState(false)
   const [showDuplicateForAssets, setShowDuplicateForAssets] = useState(false)
   const [showScriptImport, setShowScriptImport] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [showConversationPicker, setShowConversationPicker] = useState(false)
 
   const activeProfile = SERVER_PROFILES.find(p => p.id === serverProfileId) ?? SERVER_PROFILES[0]
   const baseUrl = serverProfileId === 'custom' ? customBaseUrl : activeProfile.baseUrl
@@ -54,28 +55,22 @@ export default function App() {
     }
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  function handleOpenYaml(filename: string, text: string) {
     setParseError(null)
-    const reader = new FileReader()
-    reader.onload = ev => {
-      try {
-        const text = ev.target?.result as string
-        const parsed = parseYaml(text)
-        setConversations(parsed)
-        setSelectedIndex(0)
-        setFileName(file.name)
-        setExportName(file.name)
-      } catch (err) {
-        setParseError(err instanceof Error ? err.message : String(err))
-        setConversations(null)
-        setFileName(null)
-      }
+    try {
+      const parsed = parseYaml(text)
+      setConversations(parsed)
+      setSelectedIndex(0)
+      setSelectedChatIndex(0)
+      setFileName(filename)
+      setExportName(filename)
+      setShowConversationPicker(false)
+    } catch (err) {
+      setParseError(err instanceof Error ? err.message : String(err))
+      setConversations(null)
+      setFileName(null)
+      setShowConversationPicker(false)
     }
-    reader.readAsText(file)
-    // Reset input so the same file can be re-loaded
-    e.target.value = ''
   }
 
   const selectedConv = conversations?.[selectedIndex] ?? null
@@ -91,7 +86,7 @@ export default function App() {
 
       if (e.key === 'o' || e.key === 'O') {
         e.preventDefault()
-        fileInputRef.current?.click()
+        setShowConversationPicker(true)
         return
       }
 
@@ -312,7 +307,7 @@ export default function App() {
         )}
         <div className="flex gap-3">
           <button
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => setShowConversationPicker(true)}
             className="px-6 py-3 bg-pink-500 hover:bg-pink-400 text-white font-semibold rounded-lg transition-colors"
           >
             Open YAML file
@@ -324,13 +319,13 @@ export default function App() {
             Import from Script
           </button>
         </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".yml,.yaml"
-          className="hidden"
-          onChange={handleFileChange}
-        />
+        {showConversationPicker && (
+          <ConversationPickerDialog
+            baseUrl={baseUrl}
+            onSelect={handleOpenYaml}
+            onClose={() => setShowConversationPicker(false)}
+          />
+        )}
         {showScriptImport && (
           <ScriptImportDialog
             baseUrl={baseUrl}
@@ -398,18 +393,11 @@ export default function App() {
           </button>
         </div>
         <button
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => setShowConversationPicker(true)}
           className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs rounded transition-colors"
         >
           Open file
         </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".yml,.yaml"
-          className="hidden"
-          onChange={handleFileChange}
-        />
       </header>
 
       {/* Three-panel layout */}
@@ -452,6 +440,15 @@ export default function App() {
             </div>
           )}
         </div>
+
+        {/* Conversation picker dialog */}
+        {showConversationPicker && (
+          <ConversationPickerDialog
+            baseUrl={baseUrl}
+            onSelect={handleOpenYaml}
+            onClose={() => setShowConversationPicker(false)}
+          />
+        )}
 
         {/* Script import dialog */}
         {showScriptImport && (

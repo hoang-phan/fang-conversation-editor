@@ -22,7 +22,7 @@ You are working on `fang-conversation-editor`, a standalone browser tool for edi
 
 3. **Locate relevant source files using the File Map.** Read the specific files before editing them.
 
-4. **For any task involving a backend API call, read the host `docs/api.md` first** (`fang-backend` or `empire-backend`). Prefer `/api/v1/editor/*` (meta, characters, assets, scripts). Legacy fang aliases (`/opponent_options`, `/assets`, `/scripts/convert`) still exist but the editor uses the shared editor routes. Upload: `POST /api/v1/editor/assets/upload_conversation_yml`.
+4. **For any task involving a backend API call, read the host `docs/api.md` first** (`fang-backend` or `empire-backend`). Prefer `/api/v1/editor/*` (meta, characters, assets, conversations list/show, scripts). Legacy fang aliases (`/opponent_options`, `/assets`, `/scripts/convert`) still exist but the editor uses the shared editor routes. Upload: `POST /api/v1/editor/assets/upload_conversation_yml`. Open seed YAML: `GET /api/v1/editor/conversations` + `GET /api/v1/editor/conversations/:filename`.
 
 5. **Check the fang reference implementation when rendering fidelity is in question.** The ground truth for how conversations render is:
    - `fang/src/components/Reward/ConversationOverlay.tsx` — main renderer (background, sprite area, mode detection)
@@ -60,6 +60,7 @@ You are working on `fang-conversation-editor`, a standalone browser tool for edi
 | `src/components/SpriteLayer.tsx` | Sprite overlay |
 | `src/components/EditPanel.tsx` | Right panel form editor (chat fields + conversation background) |
 | `src/components/AssetPickerDialog.tsx` | Modal for browsing backend assets (`/api/v1/editor/assets`); used by EditPanel to pick sprite and background URLs |
+| `src/components/ConversationPickerDialog.tsx` | Modal for browsing/loading seed YAML files (`/api/v1/editor/conversations`) |
 | `src/components/YamlPreview.tsx` | Raw YAML preview |
 
 ## Key constraints (never violate)

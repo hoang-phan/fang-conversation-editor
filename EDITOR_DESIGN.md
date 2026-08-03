@@ -176,7 +176,7 @@ Shortcuts are handled globally in `App.tsx` via a `keydown` listener. `Mod` mean
 
 | Shortcut | Action |
 |----------|--------|
-| `Mod + O` | Open file picker (load YAML) |
+| `Mod + O` | Open conversation picker (load YAML from backend seeds) |
 | `Mod + S` | Export YAML (same as clicking the Export button) |
 | `Mod + ArrowLeft` | Previous chat; at the first chat of a conversation, jumps to the last chat of the previous conversation |
 | `Mod + ArrowRight` | Next chat; at the last chat of a conversation, jumps to the first chat of the next conversation |
@@ -188,10 +188,12 @@ All shortcuts prevent browser defaults. Arrow shortcuts are suppressed when focu
 ## YAML I/O
 
 ### Loading
-- File picker (`<input type="file" accept=".yml,.yaml">`) reads the file via `FileReader`.
+- Opens `ConversationPickerDialog`, which lists YAML files from `GET {baseUrl}/api/v1/editor/conversations` (basenames under the backend's `db/seeds/conversations/`).
+- Selecting a file fetches its contents via `GET {baseUrl}/api/v1/editor/conversations/:filename` (`text/yaml`).
 - Parsed with `js-yaml` (`yaml.load()`).
 - Validated against the Conversation schema (basic: must be an array, each item must have `chats`).
-- Loaded into editor state.
+- Loaded into editor state. The chosen basename becomes both the loaded filename and the export name.
+- Requires the selected backend to be running; failures are shown in the dialog (same pattern as `AssetPickerDialog`).
 
 ### Script import
 - Available from both the start screen ("Import from Script" button) and the header bar when a file is already loaded.
@@ -245,7 +247,8 @@ All shortcuts prevent browser defaults. Arrow shortcuts are suppressed when focu
 | `src/components/ChatBubble.tsx` | Single chat render (role, content, speaker label) |
 | `src/components/SpriteLayer.tsx` | Sprite overlay positioning |
 | `src/components/EditPanel.tsx` | Right panel: form editor for selected chat/conversation |
-| `src/components/AssetPickerDialog.tsx` | Modal for browsing backend assets (`/api/v1/assets`); used by EditPanel to pick sprite and background URLs. Accepts optional `title` and `confirmLabel` props to customize the dialog header and confirm button. |
+| `src/components/AssetPickerDialog.tsx` | Modal for browsing backend assets (`/api/v1/editor/assets`); used by EditPanel to pick sprite and background URLs. Accepts optional `title` and `confirmLabel` props to customize the dialog header and confirm button. |
+| `src/components/ConversationPickerDialog.tsx` | Modal for browsing seed conversation YAML files (`GET /api/v1/editor/conversations`) and loading one via `GET /api/v1/editor/conversations/:filename` |
 | `src/components/AddChatDialog.tsx` | Modal for choosing a chat block type (plain, cinematic, minigames, multichoice) and configuring its arguments before inserting |
 | `src/components/QuickAddEConversationsDialog.tsx` | Modal for bulk-creating e-conversations: multi-select ordered assets from backend, each produces one conversation with `background_url` + single `other/(...)` chat |
 | `src/components/DuplicateForAssetsDialog.tsx` | Modal for bulk-duplicating the selected conversation: multi-select ordered assets from backend, each produces one clone of the current conversation with `background_url` overridden |
@@ -260,5 +263,5 @@ All shortcuts prevent browser defaults. Arrow shortcuts are suppressed when focu
 - **No live game connection**: URLs are prefixed from a configurable base URL for preview only; the YAML stores relative paths.
 - **Minigames are not playable**: special content syntax is rendered as labeled placeholder boxes.
 - **No authentication**: local tool, runs entirely in the browser.
-- **No server**: pure client-side Vite app. YAML files are loaded and exported via the browser File API.
+- **Backend-backed open/upload**: YAML open and upload go through the selected backend's `/api/v1/editor/*` routes (seed files under `db/seeds/conversations/`). Export download remains client-side via the browser File API.
 - **Fidelity over features**: the preview must match what fang renders — when in doubt, check `fang/src/components/Reward/ConversationOverlay.tsx`.

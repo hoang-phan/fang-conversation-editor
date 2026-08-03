@@ -53,6 +53,21 @@ export async function fetchEditorAssets(baseUrl: string): Promise<string[]> {
   return res.json()
 }
 
+export async function fetchConversationYmls(baseUrl: string): Promise<string[]> {
+  const res = await fetch(editorUrl(baseUrl, '/conversations'))
+  if (!res.ok) throw new Error(`conversations ${res.status}`)
+  return res.json()
+}
+
+export async function fetchConversationYml(baseUrl: string, filename: string): Promise<string> {
+  const res = await fetch(editorUrl(baseUrl, `/conversations/${encodeURIComponent(filename)}`))
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Failed to load ${filename} (${res.status}): ${body}`)
+  }
+  return res.text()
+}
+
 export async function convertScript(baseUrl: string, text: string): Promise<string> {
   const res = await fetch(editorUrl(baseUrl, '/scripts/convert'), {
     method: 'POST',
