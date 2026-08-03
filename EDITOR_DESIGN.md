@@ -132,10 +132,12 @@ Template token `{{PLAYER}}` is substituted with "Hero" in the preview.
 
 ### Chat-level
 - **Edit content**: free text input; special syntax preserved as-is
-- **Change role**: dropdown `hero | opponent | other`
+- **Change role**: 3-way toggle `other | hero | opponent` (same control in EditPanel and AddChatDialog)
 - **Add sprite**: form with url, width, height, x, y fields
 - **Remove sprite**: button per sprite
 - **Edit sprite fields**: inline inputs per sprite
+- **Copy sprites**: copies the current chat's sprites into an in-memory clipboard (enabled when the chat has sprites). Clipboard survives chat navigation while the edit panel is mounted, so sprites can be pasted onto non-adjacent chats.
+- **Paste sprites**: replaces the current chat's sprites with a deep copy of the clipboard contents (enabled when the clipboard is non-empty). The Paste button label shows the clipboard count, e.g. `Paste (2)`.
 - **Copy sprites from previous chat**: button appears when the previous chat has sprites; replaces current chat's sprites with a copy of the previous chat's sprites (same url, width, height, x, y)
 - **Copy sprites from next chat**: button appears when the next chat has sprites; replaces current chat's sprites with a copy of the next chat's sprites — useful for extending a sprite's appearance backwards
 - **Reorder chats**: drag handles or up/down buttons
@@ -208,7 +210,8 @@ All shortcuts prevent browser defaults. Arrow shortcuts are suppressed when focu
   - Chat → `{opponent-id}-conversations.yml`
   - Gift → `{opponent-id}-gift-{gift-name}.yml`
   - Cinematic → `{opponent-id}-cinematic-{level}.yml`
-- On confirm (button or Cmd/Ctrl+Enter), calls `POST {baseUrl}/api/v1/scripts/convert` with `{ "text": "..." }` (JSON).
+- On confirm (button or Cmd/Ctrl+Enter), normalizes the pasted text (`src/normalizeScript.ts`) then calls `POST {baseUrl}/api/v1/editor/scripts/convert` with `{ "text": "..." }` (JSON).
+- **Normalization** (editor + backend service, before sentence/dialogue parsing): typographic double quotes (`“”«»` etc.) → `"`, typographic single quotes / apostrophes (`‘’` etc.) → `'`, unicode ellipsis (`…`) → `...`. This keeps dialogue detection reliable when pasting from Word/Docs.
 - The backend returns YAML (`text/yaml`) representing a single conversation; the response is parsed via `parseYaml` and loaded as the full editor state. The computed filename is set as both the loaded filename and the export name.
 - Conversion errors are shown inline in the dialog.
 
@@ -253,6 +256,7 @@ All shortcuts prevent browser defaults. Arrow shortcuts are suppressed when focu
 | `src/components/QuickAddEConversationsDialog.tsx` | Modal for bulk-creating e-conversations: multi-select ordered assets from backend, each produces one conversation with `background_url` + single `other/(...)` chat |
 | `src/components/DuplicateForAssetsDialog.tsx` | Modal for bulk-duplicating the selected conversation: multi-select ordered assets from backend, each produces one clone of the current conversation with `background_url` overridden |
 | `src/components/ScriptImportDialog.tsx` | Modal for pasting a narrative script, calling `POST /api/v1/scripts/convert`, and loading the result as editor state |
+| `src/normalizeScript.ts` | Pre-convert typography normalize (smart quotes → ASCII, `…` → `...`) used by `convertScript` |
 | `src/components/YamlPreview.tsx` | Raw YAML collapsible preview — **not yet implemented** |
 | `EDITOR_DESIGN.md` | This file — authoritative design reference |
 

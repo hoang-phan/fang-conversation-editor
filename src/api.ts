@@ -1,3 +1,5 @@
+import { normalizeScriptText } from './normalizeScript'
+
 export interface EditorMeta {
   id: string
   characterLabel: string
@@ -72,7 +74,7 @@ export async function convertScript(baseUrl: string, text: string): Promise<stri
   const res = await fetch(editorUrl(baseUrl, '/scripts/convert'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text: normalizeScriptText(text) }),
   })
   if (!res.ok) {
     const body = await res.text()

@@ -19,21 +19,37 @@ interface Props {
   canDeleteConversation: boolean
 }
 
+function cloneSprites(list: Sprite[]): Sprite[] {
+  return list.map(s => ({ ...s }))
+}
+
 export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConversation, onChange, onConversationChange, onSplitHere, onMergeWithPrev, onAddChat, onDeleteChat, onDeleteConversation, canDeleteConversation }: Props) {
   const [showAddChat, setShowAddChat] = useState(false)
   const [addChatInsertAt, setAddChatInsertAt] = useState(0)
   const [pickerTarget, setPickerTarget] = useState<'new' | number | 'background' | null>(null)
+  // Survives chat navigation while EditPanel stays mounted — bridges non-adjacent chats
+  const [spriteClipboard, setSpriteClipboard] = useState<Sprite[] | null>(null)
 
   const sprites = chat.sprites ?? []
   const prevSprites = chatIndex > 0 ? (conversation.chats[chatIndex - 1].sprites ?? []) : []
   const nextSprites = chatIndex < conversation.chats.length - 1 ? (conversation.chats[chatIndex + 1].sprites ?? []) : []
 
+  function copySpritesToClipboard() {
+    if (sprites.length === 0) return
+    setSpriteClipboard(cloneSprites(sprites))
+  }
+
+  function pasteSpritesFromClipboard() {
+    if (!spriteClipboard?.length) return
+    onChange({ ...chat, sprites: cloneSprites(spriteClipboard) })
+  }
+
   function copySpritesFromPrev() {
-    onChange({ ...chat, sprites: prevSprites.length ? prevSprites.map(s => ({ ...s })) : undefined })
+    onChange({ ...chat, sprites: prevSprites.length ? cloneSprites(prevSprites) : undefined })
   }
 
   function copySpritesFromNext() {
-    onChange({ ...chat, sprites: nextSprites.length ? nextSprites.map(s => ({ ...s })) : undefined })
+    onChange({ ...chat, sprites: nextSprites.length ? cloneSprites(nextSprites) : undefined })
   }
 
   function updateSprite(index: number, patch: Partial<Sprite>) {
@@ -196,15 +212,21 @@ export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConve
         {/* Role */}
         <div className="flex flex-col gap-1">
           <label className="text-xs text-gray-400 font-medium">Role</label>
-          <select
-            value={chat.role}
-            onChange={e => onChange({ ...chat, role: e.target.value as Chat['role'] })}
-            className="bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm text-gray-200 focus:outline-none focus:border-pink-500"
-          >
-            <option value="other">other</option>
-            <option value="hero">hero</option>
-            <option value="opponent">opponent</option>
-          </select>
+          <div className="flex gap-1.5">
+            {(['other', 'hero', 'opponent'] as const).map(r => (
+              <button
+                key={r}
+                onClick={() => onChange({ ...chat, role: r })}
+                className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                  chat.role === r
+                    ? 'bg-pink-600 border-pink-500 text-white'
+                    : 'bg-gray-800 border-gray-600 text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Content */}
@@ -220,9 +242,29 @@ export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConve
 
         {/* Sprites */}
         <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between gap-1">
+          <div className="flex items-center justify-between gap-1 flex-wrap">
             <span className="text-xs text-gray-400 font-medium">Sprites</span>
-            <div className="flex gap-1">
+            <div className="flex gap-1 flex-wrap justify-end">
+              <button
+                onClick={copySpritesToClipboard}
+                disabled={sprites.length === 0}
+                className="text-xs px-2 py-0.5 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-40 disabled:cursor-not-allowed text-gray-200 transition-colors"
+                title="Copy this chat's sprites to clipboard (paste onto any other chat)"
+              >
+                Copy
+              </button>
+              <button
+                onClick={pasteSpritesFromClipboard}
+                disabled={!spriteClipboard?.length}
+                className="text-xs px-2 py-0.5 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-40 disabled:cursor-not-allowed text-gray-200 transition-colors"
+                title={
+                  spriteClipboard?.length
+                    ? `Replace current sprites with ${spriteClipboard.length} copied sprite${spriteClipboard.length === 1 ? '' : 's'}`
+                    : 'No sprites in clipboard — copy from another chat first'
+                }
+              >
+                Paste{spriteClipboard?.length ? ` (${spriteClipboard.length})` : ''}
+              </button>
               {prevSprites.length > 0 && (
                 <button
                   onClick={copySpritesFromPrev}
