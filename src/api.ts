@@ -31,6 +31,31 @@ export const SERVER_PROFILES: ServerProfile[] = [
   { id: 'custom', label: 'Custom', baseUrl: '' },
 ]
 
+/** Query param used for landing-page deep links, e.g. `?server=empire`. */
+export const SERVER_QUERY_PARAM = 'server'
+
+export function isServerProfileId(id: string): boolean {
+  return SERVER_PROFILES.some(p => p.id === id)
+}
+
+/** Read `?server=` from the current URL; falls back to `fang` when missing/invalid. */
+export function serverProfileIdFromLocation(search: string = window.location.search): string {
+  const param = new URLSearchParams(search).get(SERVER_QUERY_PARAM)
+  if (param && isServerProfileId(param)) return param
+  return 'fang'
+}
+
+/** Keep `?server=` in sync with the selected profile (replaceState, no navigation). */
+export function syncServerQueryParam(profileId: string): void {
+  const url = new URL(window.location.href)
+  if (isServerProfileId(profileId) && profileId !== 'fang') {
+    url.searchParams.set(SERVER_QUERY_PARAM, profileId)
+  } else {
+    url.searchParams.delete(SERVER_QUERY_PARAM)
+  }
+  window.history.replaceState(null, '', url)
+}
+
 export function editorUrl(baseUrl: string, path: string): string {
   const root = baseUrl.replace(/\/$/, '')
   const suffix = path.startsWith('/') ? path : `/${path}`

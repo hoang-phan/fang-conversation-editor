@@ -50,7 +50,7 @@ You are working on `fang-conversation-editor`, a standalone browser tool for edi
 | File | Responsibility |
 |------|---------------|
 | `EDITOR_DESIGN.md` | Authoritative design — read first |
-| `src/api.ts` | Server profiles + `/api/v1/editor/*` helpers |
+| `src/api.ts` | Server profiles, deep-link `?server=` helpers, `/api/v1/editor/*` API calls |
 | `src/App.tsx` | Top-level layout, file load state, server picker |
 | `src/types.ts` | TypeScript interfaces |
 | `src/parse.ts` | YAML load/validate/export |
@@ -58,8 +58,8 @@ You are working on `fang-conversation-editor`, a standalone browser tool for edi
 | `src/components/ConversationPreview.tsx` | Center panel (faithful render) |
 | `src/components/ChatBubble.tsx` | Single chat render |
 | `src/components/SpriteLayer.tsx` | Sprite overlay |
-| `src/components/EditPanel.tsx` | Right panel form editor (chat fields + conversation background) |
-| `src/components/AssetPickerDialog.tsx` | Modal for browsing backend assets (`/api/v1/editor/assets`); used by EditPanel to pick sprite and background URLs |
+| `src/components/EditPanel.tsx` | Right panel form editor (chat fields + conversation background + soundtrack) |
+| `src/components/AssetPickerDialog.tsx` | Modal for browsing backend assets (`/api/v1/editor/assets`); used by EditPanel to pick sprite, background, and soundtrack URLs |
 | `src/components/ConversationPickerDialog.tsx` | Modal for browsing/loading seed YAML files (`/api/v1/editor/conversations`) |
 | `src/components/YamlPreview.tsx` | Raw YAML preview |
 

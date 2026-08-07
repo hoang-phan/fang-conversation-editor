@@ -17,6 +17,7 @@ The YAML files contain an array of **Conversation** objects. Each Conversation c
 ```yaml
 - background_url: "/path/to/image.webp"   # optional
   background_color: "#hexcolor"            # optional
+  soundtrack_url: "/path/to/theme.mp3"    # optional — conversation BGM (audio under public/)
   chats:
     - role: hero | opponent | other        # required
       content: "Text content"              # required
@@ -27,6 +28,7 @@ The YAML files contain an array of **Conversation** objects. Each Conversation c
           height: 100                      # optional
           x: 0                             # optional (offset from horizontal center)
           y: 0                             # optional (offset from bottom)
+          flip: true                       # optional — horizontal mirror (CSS scaleX(-1))
 ```
 
 ### TypeScript types (editor-internal)
@@ -38,6 +40,7 @@ interface Sprite {
   height?: number | null
   x?: number | null
   y?: number | null
+  flip?: boolean | null
 }
 
 interface Chat {
@@ -50,6 +53,7 @@ interface Chat {
 interface Conversation {
   background_url?: string
   background_color?: string
+  soundtrack_url?: string
   chats: Chat[]
 }
 
@@ -103,6 +107,7 @@ The center panel mirrors `ConversationOverlay.tsx` from the fang frontend. Key r
 - Horizontal: `left: calc(50% + {x}px - {width/2}px)` (centered with x offset).
 - Vertical: `bottom: {y}px`.
 - Width/height applied directly; `object-fit: contain`.
+- When `flip: true`, apply `transform: scaleX(-1)` (horizontal mirror).
 
 ### Dialog box
 - Displayed below the sprites, at the bottom of the preview area.
@@ -135,11 +140,11 @@ Template token `{{PLAYER}}` is substituted with "Hero" in the preview.
 - **Change role**: 3-way toggle `other | hero | opponent` (same control in EditPanel and AddChatDialog)
 - **Add sprite**: form with url, width, height, x, y fields
 - **Remove sprite**: button per sprite
-- **Edit sprite fields**: inline inputs per sprite
-- **Copy sprites**: copies the current chat's sprites into an in-memory clipboard (enabled when the chat has sprites). Clipboard survives chat navigation while the edit panel is mounted, so sprites can be pasted onto non-adjacent chats.
-- **Paste sprites**: replaces the current chat's sprites with a deep copy of the clipboard contents (enabled when the clipboard is non-empty). The Paste button label shows the clipboard count, e.g. `Paste (2)`.
-- **Copy sprites from previous chat**: button appears when the previous chat has sprites; replaces current chat's sprites with a copy of the previous chat's sprites (same url, width, height, x, y)
-- **Copy sprites from next chat**: button appears when the next chat has sprites; replaces current chat's sprites with a copy of the next chat's sprites — useful for extending a sprite's appearance backwards
+- **Edit sprite fields**: inline inputs per sprite (url, width, height, x, y) plus a **Flip horizontally** checkbox (`flip`)
+- **Copy sprites**: copies **all** of the current chat's sprites (1 or many) into an in-memory clipboard (enabled when the chat has sprites). Clipboard is owned by `App.tsx` so it survives EditPanel remounts and chat/conversation navigation while the file is open. The Copy button label shows the count, e.g. `Copy (2)`.
+- **Paste sprites**: replaces the current chat's sprites with a deep copy of the clipboard contents (enabled when the clipboard is non-empty). The Paste button label shows the clipboard count, e.g. `Paste (2)`. Copied fields include `flip`.
+- **Copy sprites from previous chat**: button appears when the previous chat has any sprites (1 or many); replaces current chat's sprites with a full copy of the previous chat's sprites (url, width, height, x, y, flip). Label shows count, e.g. `Copy from prev (2)`.
+- **Copy sprites from next chat**: button appears when the next chat has any sprites; replaces current chat's sprites with a full copy of the next chat's sprites — useful for extending a sprite's appearance backwards. Label shows count, e.g. `Copy from next (2)`.
 - **Reorder chats**: drag handles or up/down buttons
 - **Add chat before / after**: opens `AddChatDialog` to choose a block type and role, then inserts the new chat at the selected position. Default role is `other`.
 - **Delete chat**: button removes the selected chat (with confirmation); disabled when it is the only chat in the conversation
@@ -158,9 +163,10 @@ Template token `{{PLAYER}}` is substituted with "Hero" in the preview.
 ### Conversation-level
 - **Set background_url**: text input (URL string) + Browse button (opens `AssetPickerDialog`) + clear button
 - **Set background_color**: color picker + hex input + clear button
-- **Clear background**: individual clear (✕) buttons on each field
-- **Cut**: splits the current conversation at the selected chat into two conversations. Chats 0..N become conversation A; chats N+1..end become conversation B. Both retain the same background settings.
-- **Merge into previous**: appends all chats from the current conversation to the end of the previous conversation, then removes the current conversation. The previous conversation's background settings are kept. Disabled when there is no previous conversation.
+- **Set soundtrack_url**: text input (URL string) + Browse button (opens `AssetPickerDialog` filtered to audio extensions `.mp3`, `.ogg`, `.wav`, `.m4a`, `.aac`, `.flac`) + clear button. Parallel to `background_url`; persisted in YAML as-is. The editor preview does not play the soundtrack (game clients do).
+- **Clear background / soundtrack**: individual clear (✕) buttons on each field
+- **Cut**: splits the current conversation at the selected chat into two conversations. Chats 0..N become conversation A; chats N+1..end become conversation B. Both retain the same background and soundtrack settings.
+- **Merge into previous**: appends all chats from the current conversation to the end of the previous conversation, then removes the current conversation. The previous conversation's background and soundtrack settings are kept. Disabled when there is no previous conversation.
 - **Duplicate**: clones the conversation
 - **Duplicate for Assets**: opens `DuplicateForAssetsDialog` to multi-select videos/images from the backend asset list (checkbox-style, reorderable, same UX as `QuickAddEConversationsDialog`). On confirm, clones the currently selected conversation once per selected asset — each clone keeps the same chats (including sprites) and `background_color`, but has its `background_url` set to that asset's path. Clones are inserted immediately after the source conversation, in the chosen order.
 - **Delete**: removes the whole conversation (with confirmation)
@@ -168,7 +174,7 @@ Template token `{{PLAYER}}` is substituted with "Hero" in the preview.
 ### File-level
 - **Add conversation**: appends a new empty conversation to the list
 - **Reorder conversations**: drag in the left panel
-- **Quick Add E-Conversations**: opens `QuickAddEConversationsDialog` to bulk-create e-conversations from backend assets. Each selected asset produces one conversation with `background_url` set to the asset path, and a single chat `{ role: other, content: "(...)" }`. Assets are selected in the left pane (checkbox-style, multi-select) and reordered in the right pane before confirming. The new conversations are appended to the end of the current file.
+- **Quick Add E-Conversations**: opens `QuickAddEConversationsDialog` to bulk-create e-conversations from backend assets. Each selected asset produces one conversation with `background_url` set to the asset path, and a single chat `{ role: other, content: "(...)" }`. Assets are selected in the left pane (checkbox-style, multi-select) and reordered in the right pane before confirming. The new conversations are inserted immediately after the currently selected conversation, in the chosen order.
 
 ---
 
@@ -199,20 +205,18 @@ All shortcuts prevent browser defaults. Arrow shortcuts are suppressed when focu
 
 ### Script import
 - Available from both the start screen ("Import from Script" button) and the header bar when a file is already loaded.
-- Opens `ScriptImportDialog`: a modal with interactive inputs to construct the export filename, plus a textarea for pasting the script.
-- **Filename inputs** (fetched from `GET {baseUrl}/api/v1/opponent_options` on dialog open):
-  - **Opponent** — dropdown of all opponents by name.
-  - **Type** — toggle buttons: Chat / Gift / Cinematic.
-  - **Gift** — dropdown of that opponent's gift names (only shown when type = Gift; updates when opponent changes).
-  - **Cinematic level** — buttons 1–5 (only shown when type = Cinematic).
-  - A live filename preview shows the computed name before confirming.
-- Filename is constructed as:
-  - Chat → `{opponent-id}-conversations.yml`
-  - Gift → `{opponent-id}-gift-{gift-name}.yml`
-  - Cinematic → `{opponent-id}-cinematic-{level}.yml`
+- Opens `ScriptImportDialog` in one of two modes:
+  - **`create`** (start screen) — interactive inputs to construct the export filename, plus a textarea for pasting the script. The result **replaces** editor state and sets the filename.
+  - **`append`** (header bar while a file is open) — textarea only (no character / type / slot / filename controls). Converted conversations are **appended to the end** of the current `ConversationFile`; filename is unchanged. Selection jumps to the first newly appended conversation.
+- **Filename inputs** (`create` mode only; fetched on dialog open from `GET {baseUrl}/api/v1/editor/meta` + `GET {baseUrl}/api/v1/editor/characters`):
+  - **Character** — dropdown of characters/commanders (label from meta `characterLabel`).
+  - **Type** — toggle buttons from meta `slotKinds` that the selected character has (e.g. Fang: chat / gift / cinematic; Empire: consumable / talk / affection). **Affection is listed first when present** and is the default type when there is no saved preference.
+  - **Slot** — dropdown of slots for the selected type (only shown when that type has more than one slot, e.g. Empire affection stages).
+  - A live filename preview shows the slot’s `filename` before confirming.
+- **Remembered defaults** — character, type, and slot are persisted in `localStorage` (`conversation-editor:script-import-prefs`, keyed by base URL). Reopening the dialog restores the last valid choice for that server; if none, prefer affection (when available), else the first available type/slot.
 - On confirm (button or Cmd/Ctrl+Enter), normalizes the pasted text (`src/normalizeScript.ts`) then calls `POST {baseUrl}/api/v1/editor/scripts/convert` with `{ "text": "..." }` (JSON).
 - **Normalization** (editor + backend service, before sentence/dialogue parsing): typographic double quotes (`“”«»` etc.) → `"`, typographic single quotes / apostrophes (`‘’` etc.) → `'`, unicode ellipsis (`…`) → `...`. This keeps dialogue detection reliable when pasting from Word/Docs.
-- The backend returns YAML (`text/yaml`) representing a single conversation; the response is parsed via `parseYaml` and loaded as the full editor state. The computed filename is set as both the loaded filename and the export name.
+- The backend returns YAML (`text/yaml`) representing a conversation file (typically one conversation). In `create` mode the response is loaded as the full editor state and the selected slot’s filename is set as both the loaded filename and the export name. In `append` mode those conversations are concatenated onto the existing file.
 - Conversion errors are shown inline in the dialog.
 
 ### Exporting
@@ -235,6 +239,12 @@ All shortcuts prevent browser defaults. Arrow shortcuts are suppressed when focu
 
 ### Base URL
 - A configurable input (default: `http://localhost:3000`) is prepended to all relative sprite/background URLs in the preview only. URLs in the editor state and exported YAML remain as-is (relative).
+- Server profiles on the landing page: **Fang** (`http://localhost:3000`), **Empire** (`http://localhost:3001`), or **Custom** (free-form base URL).
+
+### Deep linking (landing page)
+- Query param `server` selects the landing-page server profile on load: `?server=fang` (default), `?server=empire`, or `?server=custom`.
+- Invalid or missing values fall back to Fang.
+- Changing the Server select (or editing Base URL, which switches to Custom) updates the URL via `history.replaceState` so the link stays shareable. Fang omits the param; Empire/Custom keep `?server=…`.
 
 ---
 
@@ -250,12 +260,12 @@ All shortcuts prevent browser defaults. Arrow shortcuts are suppressed when focu
 | `src/components/ChatBubble.tsx` | Single chat render (role, content, speaker label) |
 | `src/components/SpriteLayer.tsx` | Sprite overlay positioning |
 | `src/components/EditPanel.tsx` | Right panel: form editor for selected chat/conversation |
-| `src/components/AssetPickerDialog.tsx` | Modal for browsing backend assets (`/api/v1/editor/assets`); used by EditPanel to pick sprite and background URLs. Accepts optional `title` and `confirmLabel` props to customize the dialog header and confirm button. |
+| `src/components/AssetPickerDialog.tsx` | Modal for browsing backend assets (`/api/v1/editor/assets`); used by EditPanel to pick sprite, background, and soundtrack URLs. Accepts optional `title`, `confirmLabel`, and `extensions` (lowercase ext list with leading dots, e.g. `.mp3`) to filter the list. Audio selections preview with an `<audio>` control instead of an image. |
 | `src/components/ConversationPickerDialog.tsx` | Modal for browsing seed conversation YAML files (`GET /api/v1/editor/conversations`) and loading one via `GET /api/v1/editor/conversations/:filename` |
 | `src/components/AddChatDialog.tsx` | Modal for choosing a chat block type (plain, cinematic, minigames, multichoice) and configuring its arguments before inserting |
 | `src/components/QuickAddEConversationsDialog.tsx` | Modal for bulk-creating e-conversations: multi-select ordered assets from backend, each produces one conversation with `background_url` + single `other/(...)` chat |
 | `src/components/DuplicateForAssetsDialog.tsx` | Modal for bulk-duplicating the selected conversation: multi-select ordered assets from backend, each produces one clone of the current conversation with `background_url` overridden |
-| `src/components/ScriptImportDialog.tsx` | Modal for pasting a narrative script, calling `POST /api/v1/scripts/convert`, and loading the result as editor state |
+| `src/components/ScriptImportDialog.tsx` | Modal for pasting a narrative script and calling `POST /api/v1/editor/scripts/convert`. `mode="create"` builds a filename and replaces editor state; `mode="append"` is textarea-only and appends conversations to the current file |
 | `src/normalizeScript.ts` | Pre-convert typography normalize (smart quotes → ASCII, `…` → `...`) used by `convertScript` |
 | `src/components/YamlPreview.tsx` | Raw YAML collapsible preview — **not yet implemented** |
 | `EDITOR_DESIGN.md` | This file — authoritative design reference |

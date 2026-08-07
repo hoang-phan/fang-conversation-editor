@@ -24,6 +24,7 @@ export function SpriteLayer({ sprites, baseUrl }: Props) {
               width: sprite.width ?? undefined,
               height: sprite.height ?? undefined,
               objectFit: 'contain',
+              transform: sprite.flip ? 'scaleX(-1)' : undefined,
             }}
           />
         )

@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react'
-import type { Chat, Conversation, ConversationFile } from './types'
+import type { Chat, Conversation, ConversationFile, Sprite } from './types'
 import { parseYaml, exportYaml } from './parse'
-import { SERVER_PROFILES, uploadConversationYml } from './api'
+import {
+  SERVER_PROFILES,
+  serverProfileIdFromLocation,
+  syncServerQueryParam,
+  uploadConversationYml,
+} from './api'
 import { ConversationList } from './components/ConversationList'
 import { ConversationPreview } from './components/ConversationPreview'
 import { EditPanel } from './components/EditPanel'
@@ -17,17 +22,24 @@ export default function App() {
   const [fileName, setFileName] = useState<string | null>(null)
   const [exportName, setExportName] = useState<string>('')
   const [parseError, setParseError] = useState<string | null>(null)
-  const [serverProfileId, setServerProfileId] = useState('fang')
+  const [serverProfileId, setServerProfileId] = useState(serverProfileIdFromLocation)
   const [customBaseUrl, setCustomBaseUrl] = useState('http://localhost:3001')
   const [uploadConfirm, setUploadConfirm] = useState(false)
   const [uploadStatus, setUploadStatus] = useState<{ ok: boolean; message: string } | null>(null)
   const [showQuickAddE, setShowQuickAddE] = useState(false)
   const [showDuplicateForAssets, setShowDuplicateForAssets] = useState(false)
+  // Survives EditPanel remounts (e.g. chat index briefly out of range) so multi-sprite paste still works
+  const [spriteClipboard, setSpriteClipboard] = useState<Sprite[] | null>(null)
   const [showScriptImport, setShowScriptImport] = useState(false)
   const [showConversationPicker, setShowConversationPicker] = useState(false)
 
   const activeProfile = SERVER_PROFILES.find(p => p.id === serverProfileId) ?? SERVER_PROFILES[0]
   const baseUrl = serverProfileId === 'custom' ? customBaseUrl : activeProfile.baseUrl
+
+  function handleServerProfileChange(id: string) {
+    setServerProfileId(id)
+    syncServerQueryParam(id)
+  }
 
   function handleExport() {
     if (!conversations || !fileName) return
@@ -201,7 +213,14 @@ export default function App() {
       background_url: path,
       chats: [{ role: 'other' as const, content: '(...)' }],
     }))
-    setConversations(prev => prev ? [...prev, ...newConvs] : newConvs)
+    setConversations(prev => {
+      if (!prev || prev.length === 0) return newConvs
+      return [
+        ...prev.slice(0, selectedIndex + 1),
+        ...newConvs,
+        ...prev.slice(selectedIndex + 1),
+      ]
+    })
     setShowQuickAddE(false)
   }
 
@@ -279,7 +298,7 @@ export default function App() {
           Server
           <select
             value={serverProfileId}
-            onChange={e => setServerProfileId(e.target.value)}
+            onChange={e => handleServerProfileChange(e.target.value)}
             className="bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-gray-200"
           >
             {SERVER_PROFILES.map(p => (
@@ -293,7 +312,7 @@ export default function App() {
             type="text"
             value={baseUrl}
             onChange={e => {
-              setServerProfileId('custom')
+              handleServerProfileChange('custom')
               setCustomBaseUrl(e.target.value)
             }}
             className="bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-gray-200 w-52"
@@ -329,6 +348,7 @@ export default function App() {
         {showScriptImport && (
           <ScriptImportDialog
             baseUrl={baseUrl}
+            mode="create"
             onImport={(imported, filename) => {
               setConversations(imported)
               setSelectedIndex(0)
@@ -408,7 +428,7 @@ export default function App() {
             conversations={conversations}
             selectedIndex={selectedIndex}
             baseUrl={baseUrl}
-            onSelect={i => { setSelectedIndex(i) }}
+            onSelect={i => { setSelectedIndex(i); setSelectedChatIndex(0) }}
             onReorder={handleReorderConversations}
           />
         </div>
@@ -454,12 +474,12 @@ export default function App() {
         {showScriptImport && (
           <ScriptImportDialog
             baseUrl={baseUrl}
-            onImport={(imported, filename) => {
-              setConversations(imported)
-              setSelectedIndex(0)
+            mode="append"
+            onImport={imported => {
+              const appendAt = conversations?.length ?? 0
+              setConversations(prev => (prev ? [...prev, ...imported] : imported))
+              setSelectedIndex(appendAt)
               setSelectedChatIndex(0)
-              setFileName(filename)
-              setExportName(filename)
               setShowScriptImport(false)
             }}
             onClose={() => setShowScriptImport(false)}
@@ -537,6 +557,8 @@ export default function App() {
               chat={selectedChat}
               chatIndex={selectedChatIndex}
               baseUrl={baseUrl}
+              spriteClipboard={spriteClipboard}
+              onSpriteClipboardChange={setSpriteClipboard}
               onChange={handleChatChange}
               onConversationChange={handleConversationChange}
               onSplitHere={handleSplitHere}

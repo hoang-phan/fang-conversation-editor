@@ -1,14 +1,34 @@
 import { useEffect, useRef, useState } from 'react'
 
+const AUDIO_EXTENSIONS = ['.mp3', '.ogg', '.wav', '.m4a', '.aac', '.flac']
+
+function extOf(path: string): string {
+  const i = path.lastIndexOf('.')
+  return i >= 0 ? path.slice(i).toLowerCase() : ''
+}
+
+function isAudioPath(path: string): boolean {
+  return AUDIO_EXTENSIONS.includes(extOf(path))
+}
+
 interface Props {
   baseUrl: string
   onSelect: (path: string) => void
   onClose: () => void
   title?: string
   confirmLabel?: string
+  /** When set, only paths whose lowercase extension is in this list are shown (e.g. `.mp3`). */
+  extensions?: string[]
 }
 
-export function AssetPickerDialog({ baseUrl, onSelect, onClose, title = 'Add Sprite', confirmLabel = 'Add' }: Props) {
+export function AssetPickerDialog({
+  baseUrl,
+  onSelect,
+  onClose,
+  title = 'Add Sprite',
+  confirmLabel = 'Add',
+  extensions,
+}: Props) {
   const [assets, setAssets] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -25,14 +45,15 @@ export function AssetPickerDialog({ baseUrl, onSelect, onClose, title = 'Add Spr
         return r.json() as Promise<string[]>
       })
       .then(data => {
-        setAssets(data)
+        const allowed = extensions?.map(e => e.toLowerCase())
+        setAssets(allowed ? data.filter(p => allowed.includes(extOf(p))) : data)
         setLoading(false)
       })
       .catch(err => {
         setError(err instanceof Error ? err.message : String(err))
         setLoading(false)
       })
-  }, [baseUrl])
+  }, [baseUrl, extensions])
 
   const filtered = query
     ? assets.filter(p => p.toLowerCase().includes(query.toLowerCase()))
@@ -78,12 +99,21 @@ export function AssetPickerDialog({ baseUrl, onSelect, onClose, title = 'Add Spr
         {/* Preview */}
         {selected && (
           <div className="px-4 py-2 border-b border-gray-700 shrink-0 flex items-center justify-center bg-gray-950" style={{ height: 140 }}>
-            <img
-              src={`${baseUrl}${selected}`}
-              alt="preview"
-              style={{ maxHeight: 120, maxWidth: '100%', objectFit: 'contain' }}
-              onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-            />
+            {isAudioPath(selected) ? (
+              <audio
+                key={selected}
+                controls
+                src={`${baseUrl}${selected}`}
+                className="w-full max-w-md"
+              />
+            ) : (
+              <img
+                src={`${baseUrl}${selected}`}
+                alt="preview"
+                style={{ maxHeight: 120, maxWidth: '100%', objectFit: 'contain' }}
+                onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+              />
+            )}
           </div>
         )}
 
@@ -149,3 +179,6 @@ export function AssetPickerDialog({ baseUrl, onSelect, onClose, title = 'Add Spr
     </div>
   )
 }
+
+/** Audio extensions listed by the conversation_editor gem AssetsScanner. */
+export const SOUNDTRACK_EXTENSIONS = AUDIO_EXTENSIONS

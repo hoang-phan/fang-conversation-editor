@@ -11,6 +11,7 @@ function parseSprite(raw: unknown): Sprite {
     height: typeof s.height === 'number' ? s.height : null,
     x: typeof s.x === 'number' ? s.x : null,
     y: typeof s.y === 'number' ? s.y : null,
+    flip: typeof s.flip === 'boolean' ? s.flip : null,
   }
 }
 
@@ -35,6 +36,7 @@ function parseConversation(raw: unknown, index: number): Conversation {
   return {
     background_url: typeof conv.background_url === 'string' ? conv.background_url : undefined,
     background_color: typeof conv.background_color === 'string' ? conv.background_color : undefined,
+    soundtrack_url: typeof conv.soundtrack_url === 'string' ? conv.soundtrack_url : undefined,
     chats: conv.chats.map((c, i) => parseChat(c, i)),
   }
 }
@@ -49,6 +51,7 @@ function cleanForExport(conv: Conversation): object {
   const result: Record<string, unknown> = {}
   if (conv.background_url) result.background_url = conv.background_url
   if (conv.background_color) result.background_color = conv.background_color
+  if (conv.soundtrack_url) result.soundtrack_url = conv.soundtrack_url
   result.chats = conv.chats.map(chat => {
     const c: Record<string, unknown> = { role: chat.role, content: chat.content }
     if (chat.sprites && chat.sprites.length > 0) {
@@ -58,6 +61,7 @@ function cleanForExport(conv: Conversation): object {
         if (s.height != null) sp.height = s.height
         if (s.x != null) sp.x = s.x
         if (s.y != null) sp.y = s.y
+        if (s.flip) sp.flip = true
         return sp
       })
     }

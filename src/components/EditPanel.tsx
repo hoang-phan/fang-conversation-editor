@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Chat, Conversation, Sprite } from '../types'
-import { AssetPickerDialog } from './AssetPickerDialog'
+import { AssetPickerDialog, SOUNDTRACK_EXTENSIONS } from './AssetPickerDialog'
 import { AddChatDialog } from './AddChatDialog'
 
 interface Props {
@@ -9,6 +9,8 @@ interface Props {
   chatIndex: number
   baseUrl: string
   hasPrevConversation: boolean
+  spriteClipboard: Sprite[] | null
+  onSpriteClipboardChange: (sprites: Sprite[] | null) => void
   onChange: (updated: Chat) => void
   onConversationChange: (updated: Conversation) => void
   onSplitHere: (chatIndex: number) => void
@@ -23,12 +25,10 @@ function cloneSprites(list: Sprite[]): Sprite[] {
   return list.map(s => ({ ...s }))
 }
 
-export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConversation, onChange, onConversationChange, onSplitHere, onMergeWithPrev, onAddChat, onDeleteChat, onDeleteConversation, canDeleteConversation }: Props) {
+export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConversation, spriteClipboard, onSpriteClipboardChange, onChange, onConversationChange, onSplitHere, onMergeWithPrev, onAddChat, onDeleteChat, onDeleteConversation, canDeleteConversation }: Props) {
   const [showAddChat, setShowAddChat] = useState(false)
   const [addChatInsertAt, setAddChatInsertAt] = useState(0)
-  const [pickerTarget, setPickerTarget] = useState<'new' | number | 'background' | null>(null)
-  // Survives chat navigation while EditPanel stays mounted — bridges non-adjacent chats
-  const [spriteClipboard, setSpriteClipboard] = useState<Sprite[] | null>(null)
+  const [pickerTarget, setPickerTarget] = useState<'new' | number | 'background' | 'soundtrack' | null>(null)
 
   const sprites = chat.sprites ?? []
   const prevSprites = chatIndex > 0 ? (conversation.chats[chatIndex - 1].sprites ?? []) : []
@@ -36,7 +36,7 @@ export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConve
 
   function copySpritesToClipboard() {
     if (sprites.length === 0) return
-    setSpriteClipboard(cloneSprites(sprites))
+    onSpriteClipboardChange(cloneSprites(sprites))
   }
 
   function pasteSpritesFromClipboard() {
@@ -45,11 +45,13 @@ export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConve
   }
 
   function copySpritesFromPrev() {
-    onChange({ ...chat, sprites: prevSprites.length ? cloneSprites(prevSprites) : undefined })
+    if (prevSprites.length === 0) return
+    onChange({ ...chat, sprites: cloneSprites(prevSprites) })
   }
 
   function copySpritesFromNext() {
-    onChange({ ...chat, sprites: nextSprites.length ? cloneSprites(nextSprites) : undefined })
+    if (nextSprites.length === 0) return
+    onChange({ ...chat, sprites: cloneSprites(nextSprites) })
   }
 
   function updateSprite(index: number, patch: Partial<Sprite>) {
@@ -141,6 +143,39 @@ export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConve
                   onClick={() => onConversationChange({ ...conversation, background_color: undefined })}
                   className="text-xs px-2 py-0.5 rounded bg-red-900/60 hover:bg-red-800 text-red-300 transition-colors shrink-0"
                   title="Clear color"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Soundtrack */}
+        <div className="flex flex-col gap-2 pb-3 border-b border-gray-700">
+          <span className="text-xs text-gray-400 font-medium uppercase tracking-widest">Soundtrack</span>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500">URL</label>
+            <div className="flex gap-1.5">
+              <input
+                type="text"
+                value={conversation.soundtrack_url ?? ''}
+                onChange={e => onConversationChange({ ...conversation, soundtrack_url: e.target.value || undefined })}
+                placeholder="/path/to/theme.mp3"
+                className="flex-1 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs font-mono text-gray-200 focus:outline-none focus:border-pink-500 min-w-0"
+              />
+              <button
+                onClick={() => setPickerTarget('soundtrack')}
+                className="text-xs px-2 py-0.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors shrink-0"
+                title="Browse audio assets"
+              >
+                Browse
+              </button>
+              {conversation.soundtrack_url && (
+                <button
+                  onClick={() => onConversationChange({ ...conversation, soundtrack_url: undefined })}
+                  className="text-xs px-2 py-0.5 rounded bg-red-900/60 hover:bg-red-800 text-red-300 transition-colors shrink-0"
+                  title="Clear soundtrack URL"
                 >
                   ✕
                 </button>
@@ -249,9 +284,13 @@ export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConve
                 onClick={copySpritesToClipboard}
                 disabled={sprites.length === 0}
                 className="text-xs px-2 py-0.5 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-40 disabled:cursor-not-allowed text-gray-200 transition-colors"
-                title="Copy this chat's sprites to clipboard (paste onto any other chat)"
+                title={
+                  sprites.length > 0
+                    ? `Copy all ${sprites.length} sprite${sprites.length === 1 ? '' : 's'} to clipboard (paste onto any other chat)`
+                    : 'No sprites on this chat to copy'
+                }
               >
-                Copy
+                Copy{sprites.length > 0 ? ` (${sprites.length})` : ''}
               </button>
               <button
                 onClick={pasteSpritesFromClipboard}
@@ -269,18 +308,18 @@ export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConve
                 <button
                   onClick={copySpritesFromPrev}
                   className="text-xs px-2 py-0.5 rounded bg-gray-600 hover:bg-gray-500 text-gray-200 transition-colors"
-                  title="Replace current sprites with those from the previous chat"
+                  title={`Replace current sprites with all ${prevSprites.length} from the previous chat`}
                 >
-                  Copy from prev
+                  Copy from prev ({prevSprites.length})
                 </button>
               )}
               {nextSprites.length > 0 && (
                 <button
                   onClick={copySpritesFromNext}
                   className="text-xs px-2 py-0.5 rounded bg-gray-600 hover:bg-gray-500 text-gray-200 transition-colors"
-                  title="Replace current sprites with those from the next chat"
+                  title={`Replace current sprites with all ${nextSprites.length} from the next chat`}
                 >
-                  Copy from next
+                  Copy from next ({nextSprites.length})
                 </button>
               )}
               <button
@@ -344,6 +383,16 @@ export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConve
                   </label>
                 ))}
               </div>
+
+              <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={!!sprite.flip}
+                  onChange={e => updateSprite(i, { flip: e.target.checked || null })}
+                  className="rounded border-gray-600 bg-gray-900 text-pink-600 focus:ring-pink-500"
+                />
+                Flip horizontally
+              </label>
             </div>
           ))}
         </div>
@@ -361,11 +410,21 @@ export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConve
       {pickerTarget !== null && (
         <AssetPickerDialog
           baseUrl={baseUrl}
-          title={pickerTarget === 'background' ? 'Set Background' : 'Add Sprite'}
-          confirmLabel={pickerTarget === 'background' ? 'Set' : 'Add'}
+          title={
+            pickerTarget === 'background'
+              ? 'Set Background'
+              : pickerTarget === 'soundtrack'
+                ? 'Set Soundtrack'
+                : 'Add Sprite'
+          }
+          confirmLabel={pickerTarget === 'background' || pickerTarget === 'soundtrack' ? 'Set' : 'Add'}
+          extensions={pickerTarget === 'soundtrack' ? SOUNDTRACK_EXTENSIONS : undefined}
           onSelect={path => {
             if (pickerTarget === 'background') {
               onConversationChange({ ...conversation, background_url: path })
+              setPickerTarget(null)
+            } else if (pickerTarget === 'soundtrack') {
+              onConversationChange({ ...conversation, soundtrack_url: path })
               setPickerTarget(null)
             } else if (pickerTarget === 'new') {
               addSprite(path)
