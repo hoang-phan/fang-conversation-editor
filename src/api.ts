@@ -31,6 +31,117 @@ export const SERVER_PROFILES: ServerProfile[] = [
   { id: 'custom', label: 'Custom', baseUrl: '' },
 ]
 
+/** Fang Story Writer JSON export (read-only). Default port avoids fang-backend :3000. */
+export const DEFAULT_STORY_WRITER_URL = 'http://localhost:3002'
+
+const PLAYER_SLUGS = new Set(['hito', 'mitsu'])
+
+export interface StoryWriterCastMember {
+  id: number
+  slug: string
+  name: string
+  aliases: string[]
+  gender: string
+  pronouns: string
+  summary: string
+}
+
+export interface StoryWriterProject {
+  id: number
+  title: string
+  status: string
+  chapterCount: number
+}
+
+export interface StoryWriterChapterSummary {
+  id: number
+  position: number
+  title: string
+  status: string
+  hasScript: boolean
+}
+
+export interface StoryWriterChapter extends StoryWriterChapterSummary {
+  storyline: string
+  script: string
+  cast: StoryWriterCastMember[]
+}
+
+export interface SpeakerContext {
+  heroName?: string
+  opponentName?: string
+  storyline?: string
+  cast?: StoryWriterCastMember[]
+}
+
+export function inferHeroName(cast: StoryWriterCastMember[]): string | undefined {
+  const row = cast.find(c =>
+    PLAYER_SLUGS.has((c.slug || '').toLowerCase()) || PLAYER_SLUGS.has(c.name.toLowerCase()),
+  )
+  return row?.name
+}
+
+export function matchEditorCharacter(
+  characters: EditorCharacter[],
+  cast: StoryWriterCastMember[],
+): EditorCharacter | undefined {
+  const npc = cast.find(c =>
+    !PLAYER_SLUGS.has((c.slug || '').toLowerCase()) && !PLAYER_SLUGS.has(c.name.toLowerCase()),
+  )
+  const preferred = npc ?? cast[0]
+  if (!preferred) return undefined
+  return characters.find(c =>
+    c.id.toLowerCase() === preferred.slug.toLowerCase()
+    || c.name.toLowerCase() === preferred.name.toLowerCase(),
+  )
+}
+
+export function speakerContextFromChapter(
+  chapter: StoryWriterChapter,
+  opponentName?: string,
+): SpeakerContext {
+  return {
+    heroName: inferHeroName(chapter.cast),
+    opponentName: opponentName || undefined,
+    storyline: chapter.storyline || undefined,
+    cast: chapter.cast,
+  }
+}
+
+function storyWriterUrl(baseUrl: string, path: string): string {
+  const root = baseUrl.replace(/\/$/, '')
+  const suffix = path.startsWith('/') ? path : `/${path}`
+  return `${root}/api/v1${suffix}`
+}
+
+export async function fetchStoryWriterProjects(baseUrl: string): Promise<StoryWriterProject[]> {
+  const res = await fetch(storyWriterUrl(baseUrl, '/projects'))
+  if (!res.ok) throw new Error(`story-writer projects ${res.status}`)
+  return res.json()
+}
+
+export async function fetchStoryWriterChapters(
+  baseUrl: string,
+  projectId: number,
+): Promise<StoryWriterChapterSummary[]> {
+  const res = await fetch(storyWriterUrl(baseUrl, `/projects/${projectId}/chapters`))
+  if (!res.ok) throw new Error(`story-writer chapters ${res.status}`)
+  return res.json()
+}
+
+export async function fetchStoryWriterChapter(
+  baseUrl: string,
+  projectId: number,
+  chapterId: number,
+): Promise<StoryWriterChapter> {
+  const res = await fetch(storyWriterUrl(baseUrl, `/projects/${projectId}/chapters/${chapterId}`))
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Failed to load chapter (${res.status}): ${body}`)
+  }
+  return res.json()
+}
+
 /** Query param used for landing-page deep links, e.g. `?server=empire`. */
 export const SERVER_QUERY_PARAM = 'server'
 
@@ -95,11 +206,21 @@ export async function fetchConversationYml(baseUrl: string, filename: string): P
   return res.text()
 }
 
-export async function convertScript(baseUrl: string, text: string): Promise<string> {
+export async function convertScript(
+  baseUrl: string,
+  text: string,
+  options: { useLlm?: boolean; speakerContext?: SpeakerContext; signal?: AbortSignal } = {},
+): Promise<string> {
+  const body: Record<string, unknown> = {
+    text: normalizeScriptText(text),
+    use_llm: options.useLlm ?? false,
+  }
+  if (options.speakerContext) body.speakerContext = options.speakerContext
   const res = await fetch(editorUrl(baseUrl, '/scripts/convert'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: normalizeScriptText(text) }),
+    body: JSON.stringify(body),
+    signal: options.signal,
   })
   if (!res.ok) {
     const body = await res.text()

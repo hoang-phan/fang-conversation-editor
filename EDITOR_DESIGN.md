@@ -148,6 +148,7 @@ Template token `{{PLAYER}}` is substituted with "Hero" in the preview.
 - **Reorder chats**: drag handles or up/down buttons
 - **Add chat before / after**: opens `AddChatDialog` to choose a block type and role, then inserts the new chat at the selected position. Default role is `other`.
 - **Delete chat**: button removes the selected chat (with confirmation); disabled when it is the only chat in the conversation
+- **Move to end of previous**: appends the selected chat to the end of the previous conversation and removes it from the current one. If it was the only chat, the now-empty conversation is removed and selection jumps to the moved chat in the previous conversation; otherwise selection stays on the current conversation at the chat that slid into the vacated index. Disabled when there is no previous conversation.
 
 ### AddChatDialog block types
 
@@ -165,7 +166,8 @@ Template token `{{PLAYER}}` is substituted with "Hero" in the preview.
 - **Set background_color**: color picker + hex input + clear button
 - **Set soundtrack_url**: text input (URL string) + Browse button (opens `AssetPickerDialog` filtered to audio extensions `.mp3`, `.ogg`, `.wav`, `.m4a`, `.aac`, `.flac`) + clear button. Parallel to `background_url`; persisted in YAML as-is. The editor preview does not play the soundtrack (game clients do).
 - **Clear background / soundtrack**: individual clear (✕) buttons on each field
-- **Cut**: splits the current conversation at the selected chat into two conversations. Chats 0..N become conversation A; chats N+1..end become conversation B. Both retain the same background and soundtrack settings.
+- **Cut** (UI: "Split after this chat"): splits the current conversation at the selected chat into two conversations. Chats 0..N become conversation A; chats N+1..end become conversation B. Both retain the same background and soundtrack settings.
+- **Move to end of previous**: see Chat-level — same action, listed under Conversation actions in the UI next to Split / Merge.
 - **Merge into previous**: appends all chats from the current conversation to the end of the previous conversation, then removes the current conversation. The previous conversation's background and soundtrack settings are kept. Disabled when there is no previous conversation.
 - **Duplicate**: clones the conversation
 - **Duplicate for Assets**: opens `DuplicateForAssetsDialog` to multi-select videos/images from the backend asset list (checkbox-style, reorderable, same UX as `QuickAddEConversationsDialog`). On confirm, clones the currently selected conversation once per selected asset — each clone keeps the same chats (including sprites) and `background_color`, but has its `background_url` set to that asset's path. Clones are inserted immediately after the source conversation, in the chosen order.
@@ -198,6 +200,7 @@ All shortcuts prevent browser defaults. Arrow shortcuts are suppressed when focu
 ### Loading
 - Opens `ConversationPickerDialog`, which lists YAML files from `GET {baseUrl}/api/v1/editor/conversations` (basenames under the backend's `db/seeds/conversations/`).
 - Selecting a file fetches its contents via `GET {baseUrl}/api/v1/editor/conversations/:filename` (`text/yaml`).
+- The dialog restores the last filter from `localStorage` and re-fetches the file list from the backend on each open. Filtering uses Sublime-style fuzzy subsequence matching (`src/fuzzyFilter.ts`).
 - Parsed with `js-yaml` (`yaml.load()`).
 - Validated against the Conversation schema (basic: must be an array, each item must have `chats`).
 - Loaded into editor state. The chosen basename becomes both the loaded filename and the export name.
@@ -208,16 +211,41 @@ All shortcuts prevent browser defaults. Arrow shortcuts are suppressed when focu
 - Opens `ScriptImportDialog` in one of two modes:
   - **`create`** (start screen) — interactive inputs to construct the export filename, plus a textarea for pasting the script. The result **replaces** editor state and sets the filename.
   - **`append`** (header bar while a file is open) — textarea only (no character / type / slot / filename controls). Converted conversations are **appended to the end** of the current `ConversationFile`; filename is unchanged. Selection jumps to the first newly appended conversation.
-- **Filename inputs** (`create` mode only; fetched on dialog open from `GET {baseUrl}/api/v1/editor/meta` + `GET {baseUrl}/api/v1/editor/characters`):
-  - **Character** — dropdown of characters/commanders (label from meta `characterLabel`).
-  - **Type** — toggle buttons from meta `slotKinds` that the selected character has (e.g. Fang: chat / gift / cinematic; Empire: consumable / talk / affection). **Affection is listed first when present** and is the default type when there is no saved preference.
-  - **Slot** — dropdown of slots for the selected type (only shown when that type has more than one slot, e.g. Empire affection stages).
-  - A live filename preview shows the slot’s `filename` before confirming.
-- **Remembered defaults** — character, type, and slot are persisted in `localStorage` (`conversation-editor:script-import-prefs`, keyed by base URL). Reopening the dialog restores the last valid choice for that server; if none, prefer affection (when available), else the first available type/slot.
-- On confirm (button or Cmd/Ctrl+Enter), normalizes the pasted text (`src/normalizeScript.ts`) then calls `POST {baseUrl}/api/v1/editor/scripts/convert` with `{ "text": "..." }` (JSON).
+- **Filename inputs** (`create` mode only; fetched on dialog open from `GET {baseUrl}/api/v1/editor/meta` + `GET {baseUrl}/api/v1/editor/characters`). Two modes depending on whether characters return slots:
+  - **Slot mode (Fang)** — characters include `slots` with backend filenames:
+    - **Character** — dropdown (label from meta `characterLabel`).
+    - **Type** — toggle buttons from meta `slotKinds` filtered to kinds the selected character actually has (e.g. chat / gift / cinematic).
+    - **Slot** — dropdown when the selected type has more than one slot (e.g. multiple cinematics/gifts).
+    - Filename is the selected slot’s `filename` (read-only preview).
+  - **FE filename mode (Empire)** — characters return `slots: []`; import creates **new** YAML files and the editor builds the basename:
+    - **Commander** — dropdown from `id` / `name` only (ignore empty `slots`).
+    - **Type** — always show all `meta.slotKinds`: `talk` | `gift` | `event` (do **not** filter by character slots). Default `talk`, or last prefs.
+    - **No Slot dropdown.**
+    - **Event** (when type = `event`) — free-text description; slugify to lowercase, non-alnum → `_`, collapse. Empty slug blocks convert.
+    - **Filename** — autopopulated and **editable**:
+      - `talk` → `{commanderId}-talk.yml`
+      - `gift` → `{commanderId}-gift.yml`
+      - `event` → `{commanderId}-event-{slug}.yml` (prefer slug in the name, not cinematic `order`).
+    - Trigger / rewards / `order` / `repeatable` stay out of the import dialog — author them in empire `cinematics.yml` when wiring the new file.
+- **Remembered defaults** — character, type, slot (Fang), and event description (Empire) are persisted in `localStorage` (`conversation-editor:script-import-prefs`, keyed by base URL). Reopening restores the last valid choice for that server.
+- **Source** — toggle **Paste script** (textarea) vs **From Story Writer**. Story Writer reads the local export API (`GET http://localhost:3002/api/v1/projects…/chapters/:id` by default; URL remembered in `localStorage`). Picking a chapter fills the textarea with its `script` and keeps character/type/slot. When the chapter cast slug/name matches an editor character, that character is selected as the destination (opponent).
+- On confirm (button or Cmd/Ctrl+Enter), normalizes the pasted text (`src/normalizeScript.ts`) then fires **two** convert requests in parallel:
+  - `POST {baseUrl}/api/v1/editor/scripts/convert` with `{ "text": "...", "use_llm": false }` — fast parse-only path.
+  - Same endpoint with `"use_llm": true` — LLM enrich (backgrounds + speaker roles). Does not block editing.
+  - Both requests include `speakerContext` when available: Story Writer sends `cast`, `storyline`, inferred `heroName` (Hito/Mitsu in the chapter roster), and `opponentName` (selected editor character). Paste-only still sends `opponentName` from the selected character.
 - **Normalization** (editor + backend service, before sentence/dialogue parsing): typographic double quotes (`“”«»` etc.) → `"`, typographic single quotes / apostrophes (`‘’` etc.) → `'`, unicode ellipsis (`…`) → `...`. This keeps dialogue detection reliable when pasting from Word/Docs.
-- The backend returns YAML (`text/yaml`) representing a conversation file (typically one conversation). In `create` mode the response is loaded as the full editor state and the selected slot’s filename is set as both the loaded filename and the export name. In `append` mode those conversations are concatenated onto the existing file.
-- Conversion errors are shown inline in the dialog.
+- When the fast path returns, YAML is loaded into editor state immediately (`create` replaces; `append` concatenates). Status shows **LLM enriching…**.
+- **E-background cinematics** (`src/ensureEBackgroundCinematics.ts`): after fast-path load and again after LLM merge, every conversation whose `background_url` basename starts with `e-` (except the **last** conversation in the imported/merged slice) gets a trailing cinematic chat `{ role: other, content: "(...)" }` if it does not already end with one — same shape as Quick Add E-Conversations.
+- When the LLM path returns, `mergeLlmConvert` merges into the **current** edit state (not a blind replace of the fast snapshot):
+  - **FE delete** → stay deleted (BE cannot resurrect chats by content).
+  - **FE add** (typically `(...)` cinematic blocks) → keep.
+  - **FE conversation splits** and **BE conversation splits** → both applied (union of cut points on the chat stream).
+  - **background_url**: FE wins when both set; otherwise take BE.
+  - **sprites / soundtrack_url / background_color / chat content**: always FE (LLM cannot author these).
+  - **role**: take BE enrichment on content-matched chats.
+  - Then **E-background cinematics** are ensured (see above).
+- Stale LLM responses are ignored if the user converts again (abort + generation token). Conversion errors on the fast path are shown inline in the dialog; LLM enrich failures show a non-blocking toast.
+- In `create` mode the selected slot’s filename is set as both the loaded filename and the export name.
 
 ### Exporting
 - Serialized with `js-yaml` (`yaml.dump()`, `lineWidth: -1` to prevent wrapping, `noRefs: true`).
@@ -227,7 +255,7 @@ All shortcuts prevent browser defaults. Arrow shortcuts are suppressed when focu
 - An editable filename input in the header bar pre-fills with the loaded file's name. The user can change it before exporting/uploading.
 
 ### Uploading to backend
-- "Upload to Backend" button posts the YAML directly to the backend via `POST {baseUrl}/api/v1/assets/upload_conversation_yml`.
+- "Upload to Backend" button posts the YAML directly to the backend via `POST {baseUrl}/api/v1/editor/assets/upload_conversation_yml`.
 - Accepts `multipart/form-data` with fields: `file` (blob) and `filename` (target basename, must end in `.yml`).
 - The backend writes the file into `db/seeds/conversations/` and returns `{ "path": "/absolute/path/..." }` on `200`.
 - A confirmation dialog is shown before the upload proceeds, showing the target filename and server URL.
@@ -252,6 +280,7 @@ All shortcuts prevent browser defaults. Arrow shortcuts are suppressed when focu
 
 | File | Responsibility |
 |------|---------------|
+| `src/api.ts` | Server profiles, `/api/v1/editor/*` client, Story Writer export + `speakerContext` |
 | `src/App.tsx` | Top-level layout: three panels, file load state |
 | `src/types.ts` | TypeScript interfaces: Conversation, Chat, Sprite |
 | `src/parse.ts` | YAML load/validate/export logic using js-yaml |
@@ -260,13 +289,17 @@ All shortcuts prevent browser defaults. Arrow shortcuts are suppressed when focu
 | `src/components/ChatBubble.tsx` | Single chat render (role, content, speaker label) |
 | `src/components/SpriteLayer.tsx` | Sprite overlay positioning |
 | `src/components/EditPanel.tsx` | Right panel: form editor for selected chat/conversation |
-| `src/components/AssetPickerDialog.tsx` | Modal for browsing backend assets (`/api/v1/editor/assets`); used by EditPanel to pick sprite, background, and soundtrack URLs. Accepts optional `title`, `confirmLabel`, and `extensions` (lowercase ext list with leading dots, e.g. `.mp3`) to filter the list. Audio selections preview with an `<audio>` control instead of an image. |
-| `src/components/ConversationPickerDialog.tsx` | Modal for browsing seed conversation YAML files (`GET /api/v1/editor/conversations`) and loading one via `GET /api/v1/editor/conversations/:filename` |
+| `src/fuzzyFilter.ts` | Sublime Text–style fuzzy subsequence match/rank used by asset and conversation pickers |
+| `src/lastFilter.ts` | `localStorage` helpers that persist the last filter query per picker across modal opens |
+| `src/components/AssetPickerDialog.tsx` | Modal for browsing backend assets (`/api/v1/editor/assets`); used by EditPanel to pick sprite, background, and soundtrack URLs. Accepts optional `title`, `confirmLabel`, and `extensions` (lowercase ext list with leading dots, e.g. `.mp3`) to filter the list. Restores the last filter from `localStorage` while refreshing the asset list from the backend; filter uses fuzzy subsequence matching. Audio selections preview with an `<audio>` control instead of an image. |
+| `src/components/ConversationPickerDialog.tsx` | Modal for browsing seed conversation YAML files (`GET /api/v1/editor/conversations`) and loading one via `GET /api/v1/editor/conversations/:filename`. Restores the last filter from `localStorage` and uses fuzzy subsequence matching. |
 | `src/components/AddChatDialog.tsx` | Modal for choosing a chat block type (plain, cinematic, minigames, multichoice) and configuring its arguments before inserting |
 | `src/components/QuickAddEConversationsDialog.tsx` | Modal for bulk-creating e-conversations: multi-select ordered assets from backend, each produces one conversation with `background_url` + single `other/(...)` chat |
 | `src/components/DuplicateForAssetsDialog.tsx` | Modal for bulk-duplicating the selected conversation: multi-select ordered assets from backend, each produces one clone of the current conversation with `background_url` overridden |
-| `src/components/ScriptImportDialog.tsx` | Modal for pasting a narrative script and calling `POST /api/v1/editor/scripts/convert`. `mode="create"` builds a filename and replaces editor state; `mode="append"` is textarea-only and appends conversations to the current file |
+| `src/components/ScriptImportDialog.tsx` | Modal for pasting a narrative script **or** loading a Fang Story Writer chapter, then dual-path `POST /api/v1/editor/scripts/convert` (`use_llm` false then true) with optional `speakerContext`. `mode="create"` picks output filename (Fang: slot filenames; Empire: FE-built `{id}-talk|gift|event-{slug}.yml`) and replaces editor state; `mode="append"` is textarea-only (plus Story Writer picker) and appends conversations. Hands the LLM promise to App for background merge. |
 | `src/normalizeScript.ts` | Pre-convert typography normalize (smart quotes → ASCII, `…` → `...`) used by `convertScript` |
+| `src/mergeLlmConvert.ts` | Merge LLM-enriched convert YAML into current editor state (FE structure wins; BE roles/backgrounds/splits); runs e-background cinematic ensure after merge |
+| `src/ensureEBackgroundCinematics.ts` | After script/LLM convert: append `other/(...)` to e-background conversations except the last |
 | `src/components/YamlPreview.tsx` | Raw YAML collapsible preview — **not yet implemented** |
 | `EDITOR_DESIGN.md` | This file — authoritative design reference |
 

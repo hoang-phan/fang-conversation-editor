@@ -1,4 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
+import { fuzzyFilter } from '../fuzzyFilter'
+import {
+  ASSET_PICKER_AUDIO_FILTER_KEY,
+  ASSET_PICKER_FILTER_KEY,
+  loadLastFilter,
+  saveLastFilter,
+} from '../lastFilter'
 
 const AUDIO_EXTENSIONS = ['.mp3', '.ogg', '.wav', '.m4a', '.aac', '.flac']
 
@@ -29,10 +36,11 @@ export function AssetPickerDialog({
   confirmLabel = 'Add',
   extensions,
 }: Props) {
+  const filterKey = extensions ? ASSET_PICKER_AUDIO_FILTER_KEY : ASSET_PICKER_FILTER_KEY
   const [assets, setAssets] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(() => loadLastFilter(filterKey))
   const [selected, setSelected] = useState<string | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
@@ -55,9 +63,12 @@ export function AssetPickerDialog({
       })
   }, [baseUrl, extensions])
 
-  const filtered = query
-    ? assets.filter(p => p.toLowerCase().includes(query.toLowerCase()))
-    : assets
+  const filtered = fuzzyFilter(assets, query)
+
+  function updateQuery(value: string) {
+    setQuery(value)
+    saveLastFilter(filterKey, value)
+  }
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Escape') onClose()
@@ -89,9 +100,9 @@ export function AssetPickerDialog({
           <input
             ref={searchRef}
             type="text"
-            placeholder="Filter by path…"
+            placeholder="Filter by path (fuzzy)…"
             value={query}
-            onChange={e => setQuery(e.target.value)}
+            onChange={e => updateQuery(e.target.value)}
             className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-pink-500"
           />
         </div>

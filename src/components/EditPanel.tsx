@@ -14,6 +14,7 @@ interface Props {
   onChange: (updated: Chat) => void
   onConversationChange: (updated: Conversation) => void
   onSplitHere: (chatIndex: number) => void
+  onMoveChatToPrev: (chatIndex: number) => void
   onMergeWithPrev: () => void
   onAddChat: (chat: Chat, insertAt: number) => void
   onDeleteChat: (chatIndex: number) => void
@@ -25,7 +26,7 @@ function cloneSprites(list: Sprite[]): Sprite[] {
   return list.map(s => ({ ...s }))
 }
 
-export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConversation, spriteClipboard, onSpriteClipboardChange, onChange, onConversationChange, onSplitHere, onMergeWithPrev, onAddChat, onDeleteChat, onDeleteConversation, canDeleteConversation }: Props) {
+export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConversation, spriteClipboard, onSpriteClipboardChange, onChange, onConversationChange, onSplitHere, onMoveChatToPrev, onMergeWithPrev, onAddChat, onDeleteChat, onDeleteConversation, canDeleteConversation }: Props) {
   const [showAddChat, setShowAddChat] = useState(false)
   const [addChatInsertAt, setAddChatInsertAt] = useState(0)
   const [pickerTarget, setPickerTarget] = useState<'new' | number | 'background' | 'soundtrack' | null>(null)
@@ -151,39 +152,6 @@ export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConve
           </div>
         </div>
 
-        {/* Soundtrack */}
-        <div className="flex flex-col gap-2 pb-3 border-b border-gray-700">
-          <span className="text-xs text-gray-400 font-medium uppercase tracking-widest">Soundtrack</span>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500">URL</label>
-            <div className="flex gap-1.5">
-              <input
-                type="text"
-                value={conversation.soundtrack_url ?? ''}
-                onChange={e => onConversationChange({ ...conversation, soundtrack_url: e.target.value || undefined })}
-                placeholder="/path/to/theme.mp3"
-                className="flex-1 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs font-mono text-gray-200 focus:outline-none focus:border-pink-500 min-w-0"
-              />
-              <button
-                onClick={() => setPickerTarget('soundtrack')}
-                className="text-xs px-2 py-0.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors shrink-0"
-                title="Browse audio assets"
-              >
-                Browse
-              </button>
-              {conversation.soundtrack_url && (
-                <button
-                  onClick={() => onConversationChange({ ...conversation, soundtrack_url: undefined })}
-                  className="text-xs px-2 py-0.5 rounded bg-red-900/60 hover:bg-red-800 text-red-300 transition-colors shrink-0"
-                  title="Clear soundtrack URL"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
         {/* Chat actions */}
         <div className="flex flex-col gap-2 pb-3 border-b border-gray-700">
           <span className="text-xs text-gray-400 font-medium uppercase tracking-widest">Chat</span>
@@ -221,6 +189,14 @@ export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConve
             title="Split the conversation here — chats after this one become a new conversation"
           >
             Split after this chat
+          </button>
+          <button
+            onClick={() => onMoveChatToPrev(chatIndex)}
+            disabled={!hasPrevConversation}
+            className="text-xs px-3 py-1.5 rounded bg-indigo-800 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors text-left"
+            title="Move this chat to the end of the previous conversation. If it was the only chat, this conversation is removed."
+          >
+            Move to end of previous
           </button>
           <button
             onClick={() => {
@@ -395,6 +371,39 @@ export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConve
               </label>
             </div>
           ))}
+        </div>
+
+        {/* Soundtrack */}
+        <div className="flex flex-col gap-2 pt-1 border-t border-gray-700">
+          <span className="text-xs text-gray-400 font-medium uppercase tracking-widest">Soundtrack</span>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500">URL</label>
+            <div className="flex gap-1.5">
+              <input
+                type="text"
+                value={conversation.soundtrack_url ?? ''}
+                onChange={e => onConversationChange({ ...conversation, soundtrack_url: e.target.value || undefined })}
+                placeholder="/path/to/theme.mp3"
+                className="flex-1 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs font-mono text-gray-200 focus:outline-none focus:border-pink-500 min-w-0"
+              />
+              <button
+                onClick={() => setPickerTarget('soundtrack')}
+                className="text-xs px-2 py-0.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors shrink-0"
+                title="Browse audio assets"
+              >
+                Browse
+              </button>
+              {conversation.soundtrack_url && (
+                <button
+                  onClick={() => onConversationChange({ ...conversation, soundtrack_url: undefined })}
+                  className="text-xs px-2 py-0.5 rounded bg-red-900/60 hover:bg-red-800 text-red-300 transition-colors shrink-0"
+                  title="Clear soundtrack URL"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 

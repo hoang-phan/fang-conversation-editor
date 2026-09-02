@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Chat, Conversation, ConversationFile, Sprite } from './types'
 import { parseYaml, exportYaml } from './parse'
+import { mergeLlmConvert } from './mergeLlmConvert'
+import { ensureEBackgroundCinematics } from './ensureEBackgroundCinematics'
 import {
   SERVER_PROFILES,
   serverProfileIdFromLocation,
@@ -12,8 +14,13 @@ import { ConversationPreview } from './components/ConversationPreview'
 import { EditPanel } from './components/EditPanel'
 import { QuickAddEConversationsDialog } from './components/QuickAddEConversationsDialog'
 import { DuplicateForAssetsDialog } from './components/DuplicateForAssetsDialog'
-import { ScriptImportDialog } from './components/ScriptImportDialog'
+import { ScriptImportDialog, type ScriptImportEnrichment } from './components/ScriptImportDialog'
 import { ConversationPickerDialog } from './components/ConversationPickerDialog'
+
+type EnrichStatus =
+  | { state: 'enriching' }
+  | { state: 'enriched' }
+  | { state: 'error'; message: string }
 
 export default function App() {
   const [conversations, setConversations] = useState<ConversationFile | null>(null)
@@ -32,9 +39,89 @@ export default function App() {
   const [spriteClipboard, setSpriteClipboard] = useState<Sprite[] | null>(null)
   const [showScriptImport, setShowScriptImport] = useState(false)
   const [showConversationPicker, setShowConversationPicker] = useState(false)
+  const [enrichStatus, setEnrichStatus] = useState<EnrichStatus | null>(null)
+
+  /** Abort handle for the in-flight LLM enrich request (stale converts). */
+  const enrichAbortRef = useRef<(() => void) | null>(null)
+  const enrichGenerationRef = useRef(0)
 
   const activeProfile = SERVER_PROFILES.find(p => p.id === serverProfileId) ?? SERVER_PROFILES[0]
   const baseUrl = serverProfileId === 'custom' ? customBaseUrl : activeProfile.baseUrl
+
+  function cancelEnrich() {
+    enrichAbortRef.current?.()
+    enrichAbortRef.current = null
+    enrichGenerationRef.current += 1
+    setEnrichStatus(null)
+  }
+
+  function beginEnrich(
+    enrichment: ScriptImportEnrichment,
+    /** For append mode: conversations before this index are left untouched. */
+    appendStart: number | null,
+  ) {
+    cancelEnrich()
+    const generation = enrichGenerationRef.current
+    enrichAbortRef.current = enrichment.abort
+    setEnrichStatus({ state: 'enriching' })
+
+    enrichment.promise
+      .then(llmConversations => {
+        if (generation !== enrichGenerationRef.current) return
+        setConversations(prev => {
+          if (!prev) return prev
+          if (appendStart == null) {
+            return mergeLlmConvert(prev, enrichment.baseline, llmConversations)
+          }
+          const head = prev.slice(0, appendStart)
+          const tail = prev.slice(appendStart)
+          return [...head, ...mergeLlmConvert(tail, enrichment.baseline, llmConversations)]
+        })
+        setEnrichStatus({ state: 'enriched' })
+        enrichAbortRef.current = null
+      })
+      .catch(err => {
+        if (generation !== enrichGenerationRef.current) return
+        const aborted =
+          (err instanceof DOMException && err.name === 'AbortError') ||
+          (err instanceof Error && err.name === 'AbortError')
+        if (aborted) {
+          setEnrichStatus(null)
+          return
+        }
+        const message = err instanceof Error ? err.message : String(err)
+        setEnrichStatus({ state: 'error', message })
+        enrichAbortRef.current = null
+      })
+  }
+
+  function handleScriptImport(
+    imported: Conversation[],
+    filename: string,
+    enrichment: ScriptImportEnrichment | undefined,
+    mode: 'create' | 'append',
+  ) {
+    const withCinematics = ensureEBackgroundCinematics(imported)
+    if (mode === 'create') {
+      setConversations(withCinematics)
+      setSelectedIndex(0)
+      setSelectedChatIndex(0)
+      setFileName(filename)
+      setExportName(filename)
+      setShowScriptImport(false)
+      if (enrichment) beginEnrich(enrichment, null)
+      else cancelEnrich()
+      return
+    }
+
+    const appendAt = conversations?.length ?? 0
+    setConversations(prev => (prev ? [...prev, ...withCinematics] : withCinematics))
+    setSelectedIndex(appendAt)
+    setSelectedChatIndex(0)
+    setShowScriptImport(false)
+    if (enrichment) beginEnrich(enrichment, appendAt)
+    else cancelEnrich()
+  }
 
   function handleServerProfileChange(id: string) {
     setServerProfileId(id)
@@ -71,6 +158,7 @@ export default function App() {
     setParseError(null)
     try {
       const parsed = parseYaml(text)
+      cancelEnrich()
       setConversations(parsed)
       setSelectedIndex(0)
       setSelectedChatIndex(0)
@@ -263,6 +351,41 @@ export default function App() {
     setSelectedChatIndex(prev.chats.length) // first chat from the merged-in block
   }
 
+  function handleMoveChatToPrev(chatIndex: number) {
+    if (!conversations) return
+    if (selectedIndex === 0) return
+    const prev = conversations[selectedIndex - 1]
+    const curr = conversations[selectedIndex]
+    const chat = curr.chats[chatIndex]
+    if (!chat) return
+
+    const updatedPrev: Conversation = {
+      ...prev,
+      chats: [...prev.chats, chat],
+    }
+    const remainingChats = curr.chats.filter((_, i) => i !== chatIndex)
+
+    if (remainingChats.length === 0) {
+      const next = [
+        ...conversations.slice(0, selectedIndex - 1),
+        updatedPrev,
+        ...conversations.slice(selectedIndex + 1),
+      ]
+      setConversations(next)
+      setSelectedIndex(selectedIndex - 1)
+      setSelectedChatIndex(updatedPrev.chats.length - 1)
+      return
+    }
+
+    const updatedCurr: Conversation = { ...curr, chats: remainingChats }
+    setConversations(conversations.map((c, i) => {
+      if (i === selectedIndex - 1) return updatedPrev
+      if (i === selectedIndex) return updatedCurr
+      return c
+    }))
+    setSelectedChatIndex(Math.min(chatIndex, remainingChats.length - 1))
+  }
+
   function handleDeleteConversation() {
     if (!conversations) return
     if (conversations.length <= 1) return // don't delete the last conversation
@@ -349,13 +472,8 @@ export default function App() {
           <ScriptImportDialog
             baseUrl={baseUrl}
             mode="create"
-            onImport={(imported, filename) => {
-              setConversations(imported)
-              setSelectedIndex(0)
-              setSelectedChatIndex(0)
-              setFileName(filename)
-              setExportName(filename)
-              setShowScriptImport(false)
+            onImport={(imported, filename, enrichment) => {
+              handleScriptImport(imported, filename, enrichment, 'create')
             }}
             onClose={() => setShowScriptImport(false)}
           />
@@ -370,6 +488,17 @@ export default function App() {
       <header className="shrink-0 flex items-center gap-4 px-4 py-2 bg-gray-900 border-b border-gray-700">
         <span className="text-pink-400 font-bold text-sm">Fang Conversation Editor</span>
         <span className="text-gray-500 text-xs">{fileName}</span>
+        {enrichStatus?.state === 'enriching' && (
+          <span className="text-xs text-violet-300 animate-pulse">LLM enriching…</span>
+        )}
+        {enrichStatus?.state === 'enriched' && (
+          <span className="text-xs text-green-400">LLM enriched</span>
+        )}
+        {enrichStatus?.state === 'error' && (
+          <span className="text-xs text-red-400" title={enrichStatus.message}>
+            LLM enrich failed
+          </span>
+        )}
         <div className="flex-1" />
         <div className="flex items-center gap-1">
           <input
@@ -475,12 +604,8 @@ export default function App() {
           <ScriptImportDialog
             baseUrl={baseUrl}
             mode="append"
-            onImport={imported => {
-              const appendAt = conversations?.length ?? 0
-              setConversations(prev => (prev ? [...prev, ...imported] : imported))
-              setSelectedIndex(appendAt)
-              setSelectedChatIndex(0)
-              setShowScriptImport(false)
+            onImport={(imported, _filename, enrichment) => {
+              handleScriptImport(imported, '', enrichment, 'append')
             }}
             onClose={() => setShowScriptImport(false)}
           />
@@ -532,7 +657,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Upload status toast */}
+        {/* Upload / enrich status toast */}
         {uploadStatus && (
           <div
             className={`fixed bottom-4 right-4 z-50 px-4 py-2.5 rounded-lg text-xs shadow-lg flex items-center gap-3 ${
@@ -542,6 +667,33 @@ export default function App() {
             <span>{uploadStatus.message}</span>
             <button
               onClick={() => setUploadStatus(null)}
+              className="text-current opacity-60 hover:opacity-100 font-bold leading-none"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+        {!uploadStatus && enrichStatus?.state === 'enriching' && (
+          <div className="fixed bottom-4 right-4 z-50 px-4 py-2.5 rounded-lg text-xs shadow-lg bg-violet-900 text-violet-100">
+            LLM enriching in background…
+          </div>
+        )}
+        {!uploadStatus && enrichStatus?.state === 'error' && (
+          <div className="fixed bottom-4 right-4 z-50 px-4 py-2.5 rounded-lg text-xs shadow-lg flex items-center gap-3 bg-red-900 text-red-200">
+            <span>LLM enrich failed: {enrichStatus.message}</span>
+            <button
+              onClick={() => setEnrichStatus(null)}
+              className="text-current opacity-60 hover:opacity-100 font-bold leading-none"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+        {!uploadStatus && enrichStatus?.state === 'enriched' && (
+          <div className="fixed bottom-4 right-4 z-50 px-4 py-2.5 rounded-lg text-xs shadow-lg flex items-center gap-3 bg-green-800 text-green-100">
+            <span>LLM enrich applied</span>
+            <button
+              onClick={() => setEnrichStatus(null)}
               className="text-current opacity-60 hover:opacity-100 font-bold leading-none"
             >
               ✕
@@ -562,6 +714,7 @@ export default function App() {
               onChange={handleChatChange}
               onConversationChange={handleConversationChange}
               onSplitHere={handleSplitHere}
+              onMoveChatToPrev={handleMoveChatToPrev}
               onMergeWithPrev={handleMergeWithPrev}
               hasPrevConversation={selectedIndex > 0}
               onAddChat={handleAddChat}

@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { fetchConversationYml, fetchConversationYmls } from '../api'
+import { fuzzyFilter } from '../fuzzyFilter'
+import {
+  CONVERSATION_PICKER_FILTER_KEY,
+  loadLastFilter,
+  saveLastFilter,
+} from '../lastFilter'
 
 interface Props {
   baseUrl: string
@@ -11,7 +17,7 @@ export function ConversationPickerDialog({ baseUrl, onSelect, onClose }: Props) 
   const [files, setFiles] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(() => loadLastFilter(CONVERSATION_PICKER_FILTER_KEY))
   const [selected, setSelected] = useState<string | null>(null)
   const [opening, setOpening] = useState(false)
   const [openError, setOpenError] = useState<string | null>(null)
@@ -31,9 +37,12 @@ export function ConversationPickerDialog({ baseUrl, onSelect, onClose }: Props) 
       })
   }, [baseUrl])
 
-  const filtered = query
-    ? files.filter(name => name.toLowerCase().includes(query.toLowerCase()))
-    : files
+  const filtered = fuzzyFilter(files, query)
+
+  function updateQuery(value: string) {
+    setQuery(value)
+    saveLastFilter(CONVERSATION_PICKER_FILTER_KEY, value)
+  }
 
   async function openFile(filename: string) {
     setOpening(true)
@@ -75,9 +84,9 @@ export function ConversationPickerDialog({ baseUrl, onSelect, onClose }: Props) 
           <input
             ref={searchRef}
             type="text"
-            placeholder="Filter by filename…"
+            placeholder="Filter by filename (fuzzy)…"
             value={query}
-            onChange={e => setQuery(e.target.value)}
+            onChange={e => updateQuery(e.target.value)}
             className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-pink-500"
           />
           <p className="mt-1.5 text-[11px] text-gray-500">

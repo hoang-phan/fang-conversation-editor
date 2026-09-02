@@ -22,7 +22,7 @@ You are working on `fang-conversation-editor`, a standalone browser tool for edi
 
 3. **Locate relevant source files using the File Map.** Read the specific files before editing them.
 
-4. **For any task involving a backend API call, read the host `docs/api.md` first** (`fang-backend` or `empire-backend`). Prefer `/api/v1/editor/*` (meta, characters, assets, conversations list/show, scripts). Legacy fang aliases (`/opponent_options`, `/assets`, `/scripts/convert`) still exist but the editor uses the shared editor routes. Upload: `POST /api/v1/editor/assets/upload_conversation_yml`. Open seed YAML: `GET /api/v1/editor/conversations` + `GET /api/v1/editor/conversations/:filename`.
+4. **For any task involving a backend API call, read the host `docs/api.md` first** (`fang-backend` or `empire-backend`). Prefer `/api/v1/editor/*` (meta, characters, assets, conversations list/show, scripts). Legacy fang aliases (`/opponent_options`, `/assets`, `/scripts/convert`) still exist but the editor uses the shared editor routes. Upload: `POST /api/v1/editor/assets/upload_conversation_yml`. Open seed YAML: `GET /api/v1/editor/conversations` + `GET /api/v1/editor/conversations/:filename`. Story Writer chapter import: `GET {storyWriter}/api/v1/projects` + `…/chapters/:id`, then convert with `speakerContext` — do not re-implement YAML conversion in the frontend.
 
 5. **Check the fang reference implementation when rendering fidelity is in question.** The ground truth for how conversations render is:
    - `fang/src/components/Reward/ConversationOverlay.tsx` — main renderer (background, sprite area, mode detection)
@@ -50,7 +50,7 @@ You are working on `fang-conversation-editor`, a standalone browser tool for edi
 | File | Responsibility |
 |------|---------------|
 | `EDITOR_DESIGN.md` | Authoritative design — read first |
-| `src/api.ts` | Server profiles, deep-link `?server=` helpers, `/api/v1/editor/*` API calls |
+| `src/api.ts` | Server profiles, deep-link `?server=` helpers, `/api/v1/editor/*` API calls, Story Writer export |
 | `src/App.tsx` | Top-level layout, file load state, server picker |
 | `src/types.ts` | TypeScript interfaces |
 | `src/parse.ts` | YAML load/validate/export |
@@ -61,6 +61,7 @@ You are working on `fang-conversation-editor`, a standalone browser tool for edi
 | `src/components/EditPanel.tsx` | Right panel form editor (chat fields + conversation background + soundtrack) |
 | `src/components/AssetPickerDialog.tsx` | Modal for browsing backend assets (`/api/v1/editor/assets`); used by EditPanel to pick sprite, background, and soundtrack URLs |
 | `src/components/ConversationPickerDialog.tsx` | Modal for browsing/loading seed YAML files (`/api/v1/editor/conversations`) |
+| `src/components/ScriptImportDialog.tsx` | Paste script or Story Writer chapter → convert with `speakerContext` |
 | `src/components/YamlPreview.tsx` | Raw YAML preview |
 
 ## Key constraints (never violate)
