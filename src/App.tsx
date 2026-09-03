@@ -47,6 +47,8 @@ export default function App() {
 
   const activeProfile = SERVER_PROFILES.find(p => p.id === serverProfileId) ?? SERVER_PROFILES[0]
   const baseUrl = serverProfileId === 'custom' ? customBaseUrl : activeProfile.baseUrl
+  const exportOptions =
+    serverProfileId === 'empire' ? { doubleNonEBackgroundSpriteSize: true } : undefined
 
   function cancelEnrich() {
     enrichAbortRef.current?.()
@@ -130,7 +132,7 @@ export default function App() {
 
   function handleExport() {
     if (!conversations || !fileName) return
-    const yaml = exportYaml(conversations)
+    const yaml = exportYaml(conversations, exportOptions)
     const blob = new Blob([yaml], { type: 'text/yaml' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -144,7 +146,7 @@ export default function App() {
     if (!conversations || !fileName) return
     setUploadConfirm(false)
     setUploadStatus(null)
-    const yaml = exportYaml(conversations)
+    const yaml = exportYaml(conversations, exportOptions)
     const targetName = exportName || fileName
     try {
       const data = await uploadConversationYml(baseUrl, targetName, yaml)
@@ -193,7 +195,7 @@ export default function App() {
       if (e.key === 's' || e.key === 'S') {
         e.preventDefault()
         if (!conversations || !fileName) return
-        const yaml = exportYaml(conversations)
+        const yaml = exportYaml(conversations, exportOptions)
         const blob = new Blob([yaml], { type: 'text/yaml' })
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')

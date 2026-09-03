@@ -253,6 +253,7 @@ All shortcuts prevent browser defaults. Arrow shortcuts are suppressed when focu
 - Null/undefined optional fields are omitted.
 - Download triggered via a `<a download>` blob URL ("Export YAML" button).
 - An editable filename input in the header bar pre-fills with the loaded file's name. The user can change it before exporting/uploading.
+- **Empire sprite size scale**: when the selected server profile is **Empire**, exported (and uploaded) YAML doubles each sprite's `width` and `height` for conversations whose `background_url` basename does **not** start with `e` (non-e-background). E-background conversations are unchanged. Editor state and the center preview keep the authored values — only the YAML output is scaled. Fang and Custom profiles export 1:1.
 
 ### Uploading to backend
 - "Upload to Backend" button posts the YAML directly to the backend via `POST {baseUrl}/api/v1/editor/assets/upload_conversation_yml`.
@@ -283,7 +284,7 @@ All shortcuts prevent browser defaults. Arrow shortcuts are suppressed when focu
 | `src/api.ts` | Server profiles, `/api/v1/editor/*` client, Story Writer export + `speakerContext` |
 | `src/App.tsx` | Top-level layout: three panels, file load state |
 | `src/types.ts` | TypeScript interfaces: Conversation, Chat, Sprite |
-| `src/parse.ts` | YAML load/validate/export logic using js-yaml |
+| `src/parse.ts` | YAML load/validate/export logic using js-yaml; Empire export may 2× non-e-background sprite width/height |
 | `src/components/ConversationList.tsx` | Left panel: conversation list, reorder, add/delete |
 | `src/components/ConversationPreview.tsx` | Center panel: faithful render of one conversation |
 | `src/components/ChatBubble.tsx` | Single chat render (role, content, speaker label) |
@@ -312,3 +313,4 @@ All shortcuts prevent browser defaults. Arrow shortcuts are suppressed when focu
 - **No authentication**: local tool, runs entirely in the browser.
 - **Backend-backed open/upload**: YAML open and upload go through the selected backend's `/api/v1/editor/*` routes (seed files under `db/seeds/conversations/`). Export download remains client-side via the browser File API.
 - **Fidelity over features**: the preview must match what fang renders — when in doubt, check `fang/src/components/Reward/ConversationOverlay.tsx`.
+- **Empire export scale**: sprite width/height doubling for non-e-background applies only at YAML export/upload time when the Empire server profile is selected; do not bake the 2× into editor state or the preview.
