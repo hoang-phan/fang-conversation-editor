@@ -43,6 +43,8 @@ export default function App() {
   const [enrichStatus, setEnrichStatus] = useState<EnrichStatus | null>(null)
   const [eBackgroundScale, setEBackgroundScale] = useState(() => loadSpriteScalePrefs().eBackgroundScale)
   const [nonEBackgroundScale, setNonEBackgroundScale] = useState(() => loadSpriteScalePrefs().nonEBackgroundScale)
+  const [importEBackgroundDescale, setImportEBackgroundDescale] = useState(1)
+  const [importNonEBackgroundDescale, setImportNonEBackgroundDescale] = useState(1)
 
   /** Abort handle for the in-flight LLM enrich request (stale converts). */
   const enrichAbortRef = useRef<(() => void) | null>(null)
@@ -171,7 +173,10 @@ export default function App() {
   function handleOpenYaml(filename: string, text: string) {
     setParseError(null)
     try {
-      const parsed = parseYaml(text)
+      const parsed = parseYaml(text, {
+        eBackgroundDescale: importEBackgroundDescale,
+        nonEBackgroundDescale: importNonEBackgroundDescale,
+      })
       cancelEnrich()
       setConversations(parsed)
       setSelectedIndex(0)
@@ -480,6 +485,10 @@ export default function App() {
             baseUrl={baseUrl}
             onSelect={handleOpenYaml}
             onClose={() => setShowConversationPicker(false)}
+            eBackgroundDescale={importEBackgroundDescale}
+            nonEBackgroundDescale={importNonEBackgroundDescale}
+            onEBackgroundDescaleChange={setImportEBackgroundDescale}
+            onNonEBackgroundDescaleChange={setImportNonEBackgroundDescale}
           />
         )}
         {showScriptImport && (
@@ -610,6 +619,10 @@ export default function App() {
             baseUrl={baseUrl}
             onSelect={handleOpenYaml}
             onClose={() => setShowConversationPicker(false)}
+            eBackgroundDescale={importEBackgroundDescale}
+            nonEBackgroundDescale={importNonEBackgroundDescale}
+            onEBackgroundDescaleChange={setImportEBackgroundDescale}
+            onNonEBackgroundDescaleChange={setImportNonEBackgroundDescale}
           />
         )}
 

@@ -13,6 +13,18 @@ export interface ExportOptions {
   nonEBackgroundScale?: number
 }
 
+export interface ImportOptions {
+  /**
+   * Independent user-set divisors applied to sprite width/height on parse.
+   * Divides (does not multiply) so a previously scaled seed YAML can be
+   * de-scaled into editor state/preview. `eBackgroundDescale` applies when the
+   * conversation background is an e-background; `nonEBackgroundDescale` applies
+   * otherwise. Both default to 1 when omitted.
+   */
+  eBackgroundDescale?: number
+  nonEBackgroundDescale?: number
+}
+
 function parseSprite(raw: unknown): Sprite {
   if (!raw || typeof raw !== 'object') throw new Error('Invalid sprite')
   const s = raw as Record<string, unknown>
@@ -41,22 +53,34 @@ function parseChat(raw: unknown, index: number): Chat {
   }
 }
 
-function parseConversation(raw: unknown, index: number): Conversation {
+function parseConversation(raw: unknown, index: number, options?: ImportOptions): Conversation {
   if (!raw || typeof raw !== 'object') throw new Error(`Conversation ${index} is not an object`)
   const conv = raw as Record<string, unknown>
   if (!Array.isArray(conv.chats)) throw new Error(`Conversation ${index} missing chats array`)
-  return {
-    background_url: typeof conv.background_url === 'string' ? conv.background_url : undefined,
+  const background_url = typeof conv.background_url === 'string' ? conv.background_url : undefined
+  const parsed: Conversation = {
+    background_url,
     background_color: typeof conv.background_color === 'string' ? conv.background_color : undefined,
     soundtrack_url: typeof conv.soundtrack_url === 'string' ? conv.soundtrack_url : undefined,
     chats: conv.chats.map((c, i) => parseChat(c, i)),
   }
+  const rawScale = isEBackgroundUrl(background_url)
+    ? (options?.eBackgroundDescale ?? 1)
+    : (options?.nonEBackgroundDescale ?? 1)
+  const scale = Number.isFinite(rawScale) && rawScale >= 0.1 ? rawScale : 0.1
+  for (const chat of parsed.chats) {
+    for (const sprite of chat.sprites ?? []) {
+      if (sprite.width != null) sprite.width = sprite.width / scale
+      if (sprite.height != null) sprite.height = sprite.height / scale
+    }
+  }
+  return parsed
 }
 
-export function parseYaml(text: string): ConversationFile {
+export function parseYaml(text: string, options?: ImportOptions): ConversationFile {
   const raw = yaml.load(text)
   if (!Array.isArray(raw)) throw new Error('YAML must be an array of conversations')
-  return raw.map((item, i) => parseConversation(item, i))
+  return raw.map((item, i) => parseConversation(item, i, options))
 }
 
 function cleanForExport(conv: Conversation, options?: ExportOptions): object {

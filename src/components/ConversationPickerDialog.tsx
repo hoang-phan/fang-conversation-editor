@@ -11,9 +11,21 @@ interface Props {
   baseUrl: string
   onSelect: (filename: string, yamlText: string) => void
   onClose: () => void
+  eBackgroundDescale: number
+  nonEBackgroundDescale: number
+  onEBackgroundDescaleChange: (v: number) => void
+  onNonEBackgroundDescaleChange: (v: number) => void
 }
 
-export function ConversationPickerDialog({ baseUrl, onSelect, onClose }: Props) {
+export function ConversationPickerDialog({
+  baseUrl,
+  onSelect,
+  onClose,
+  eBackgroundDescale,
+  nonEBackgroundDescale,
+  onEBackgroundDescaleChange,
+  onNonEBackgroundDescaleChange,
+}: Props) {
   const [files, setFiles] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -92,6 +104,39 @@ export function ConversationPickerDialog({ baseUrl, onSelect, onClose }: Props) 
           <p className="mt-1.5 text-[11px] text-gray-500">
             Files from <span className="font-mono text-gray-400">db/seeds/conversations/</span> on {baseUrl}
           </p>
+          <div className="flex flex-col gap-2 mt-2">
+            <span className="text-xs text-gray-400 font-medium uppercase tracking-widest">Import Sprite De-scale</span>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="flex flex-col gap-0.5">
+                <span className="text-xs text-gray-500">E-Background Sprite De-scale</span>
+                <input
+                  type="number"
+                  min={0.1}
+                  step={0.1}
+                  value={eBackgroundDescale}
+                  onChange={e => {
+                    const n = Number(e.target.value)
+                    if (Number.isFinite(n)) onEBackgroundDescaleChange(n)
+                  }}
+                  className="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-pink-500"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className="text-xs text-gray-500">Non-E-Background Sprite De-scale</span>
+                <input
+                  type="number"
+                  min={0.1}
+                  step={0.1}
+                  value={nonEBackgroundDescale}
+                  onChange={e => {
+                    const n = Number(e.target.value)
+                    if (Number.isFinite(n)) onNonEBackgroundDescaleChange(n)
+                  }}
+                  className="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-pink-500"
+                />
+              </label>
+            </div>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto min-h-0">
