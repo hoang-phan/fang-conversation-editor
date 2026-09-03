@@ -292,6 +292,20 @@ export default function App() {
     setSelectedChatIndex(Math.min(chatIndex, conv.chats.length - 2))
   }
 
+  function handleMoveChat(chatIndex: number, direction: -1 | 1) {
+    if (!conversations) return
+    const conv = conversations[selectedIndex]
+    const targetIndex = chatIndex + direction
+    if (targetIndex < 0 || targetIndex >= conv.chats.length) return
+    setConversations(conversations.map((c, ci) => {
+      if (ci !== selectedIndex) return c
+      const chats = [...c.chats]
+      ;[chats[chatIndex], chats[targetIndex]] = [chats[targetIndex], chats[chatIndex]]
+      return { ...c, chats }
+    }))
+    setSelectedChatIndex(targetIndex)
+  }
+
   function handleSplitHere(chatIndex: number) {
     if (!conversations) return
     const conv = conversations[selectedIndex]
@@ -750,6 +764,7 @@ export default function App() {
               hasPrevConversation={selectedIndex > 0}
               onAddChat={handleAddChat}
               onDeleteChat={handleDeleteChat}
+              onMoveChat={handleMoveChat}
               onDeleteConversation={handleDeleteConversation}
               canDeleteConversation={conversations.length > 1}
             />

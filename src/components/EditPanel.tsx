@@ -22,6 +22,7 @@ interface Props {
   onMergeWithPrev: () => void
   onAddChat: (chat: Chat, insertAt: number) => void
   onDeleteChat: (chatIndex: number) => void
+  onMoveChat: (chatIndex: number, direction: -1 | 1) => void
   onDeleteConversation: () => void
   canDeleteConversation: boolean
 }
@@ -30,7 +31,7 @@ function cloneSprites(list: Sprite[]): Sprite[] {
   return list.map(s => ({ ...s }))
 }
 
-export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConversation, spriteClipboard, onSpriteClipboardChange, eBackgroundScale, nonEBackgroundScale, onEBackgroundScaleChange, onNonEBackgroundScaleChange, onChange, onConversationChange, onSplitHere, onMoveChatToPrev, onMergeWithPrev, onAddChat, onDeleteChat, onDeleteConversation, canDeleteConversation }: Props) {
+export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConversation, spriteClipboard, onSpriteClipboardChange, eBackgroundScale, nonEBackgroundScale, onEBackgroundScaleChange, onNonEBackgroundScaleChange, onChange, onConversationChange, onSplitHere, onMoveChatToPrev, onMergeWithPrev, onAddChat, onDeleteChat, onMoveChat, onDeleteConversation, canDeleteConversation }: Props) {
   const [showAddChat, setShowAddChat] = useState(false)
   const [addChatInsertAt, setAddChatInsertAt] = useState(0)
   const [pickerTarget, setPickerTarget] = useState<'new' | number | 'background' | 'soundtrack' | null>(null)
@@ -171,6 +172,24 @@ export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConve
           >
             + Add chat after this
           </button>
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => onMoveChat(chatIndex, -1)}
+              disabled={chatIndex === 0}
+              className="flex-1 text-xs px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-gray-200 transition-colors text-left"
+              title="Move this chat earlier in the conversation"
+            >
+              ▲ Move up
+            </button>
+            <button
+              onClick={() => onMoveChat(chatIndex, 1)}
+              disabled={chatIndex >= conversation.chats.length - 1}
+              className="flex-1 text-xs px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-gray-200 transition-colors text-left"
+              title="Move this chat later in the conversation"
+            >
+              ▼ Move down
+            </button>
+          </div>
           <button
             onClick={() => {
               if (window.confirm(`Delete chat ${chatIndex + 1}?`)) onDeleteChat(chatIndex)
