@@ -3,6 +3,7 @@ import type { Chat, Conversation, ConversationFile, Sprite } from './types'
 import { parseYaml, exportYaml } from './parse'
 import { mergeLlmConvert } from './mergeLlmConvert'
 import { ensureEBackgroundCinematics } from './ensureEBackgroundCinematics'
+import { loadSpriteScalePrefs, saveSpriteScalePrefs } from './spriteScalePrefs'
 import {
   SERVER_PROFILES,
   serverProfileIdFromLocation,
@@ -40,6 +41,8 @@ export default function App() {
   const [showScriptImport, setShowScriptImport] = useState(false)
   const [showConversationPicker, setShowConversationPicker] = useState(false)
   const [enrichStatus, setEnrichStatus] = useState<EnrichStatus | null>(null)
+  const [eBackgroundScale, setEBackgroundScale] = useState(() => loadSpriteScalePrefs().eBackgroundScale)
+  const [nonEBackgroundScale, setNonEBackgroundScale] = useState(() => loadSpriteScalePrefs().nonEBackgroundScale)
 
   /** Abort handle for the in-flight LLM enrich request (stale converts). */
   const enrichAbortRef = useRef<(() => void) | null>(null)
@@ -47,8 +50,17 @@ export default function App() {
 
   const activeProfile = SERVER_PROFILES.find(p => p.id === serverProfileId) ?? SERVER_PROFILES[0]
   const baseUrl = serverProfileId === 'custom' ? customBaseUrl : activeProfile.baseUrl
-  const exportOptions =
-    serverProfileId === 'empire' ? { doubleNonEBackgroundSpriteSize: true } : undefined
+  const exportOptions = { eBackgroundScale, nonEBackgroundScale }
+
+  function handleEBackgroundScaleChange(value: number) {
+    setEBackgroundScale(value)
+    saveSpriteScalePrefs({ eBackgroundScale: value, nonEBackgroundScale })
+  }
+
+  function handleNonEBackgroundScaleChange(value: number) {
+    setNonEBackgroundScale(value)
+    saveSpriteScalePrefs({ eBackgroundScale, nonEBackgroundScale: value })
+  }
 
   function cancelEnrich() {
     enrichAbortRef.current?.()
@@ -713,6 +725,10 @@ export default function App() {
               baseUrl={baseUrl}
               spriteClipboard={spriteClipboard}
               onSpriteClipboardChange={setSpriteClipboard}
+              eBackgroundScale={eBackgroundScale}
+              nonEBackgroundScale={nonEBackgroundScale}
+              onEBackgroundScaleChange={handleEBackgroundScaleChange}
+              onNonEBackgroundScaleChange={handleNonEBackgroundScaleChange}
               onChange={handleChatChange}
               onConversationChange={handleConversationChange}
               onSplitHere={handleSplitHere}

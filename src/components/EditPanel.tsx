@@ -11,6 +11,10 @@ interface Props {
   hasPrevConversation: boolean
   spriteClipboard: Sprite[] | null
   onSpriteClipboardChange: (sprites: Sprite[] | null) => void
+  eBackgroundScale: number
+  nonEBackgroundScale: number
+  onEBackgroundScaleChange: (value: number) => void
+  onNonEBackgroundScaleChange: (value: number) => void
   onChange: (updated: Chat) => void
   onConversationChange: (updated: Conversation) => void
   onSplitHere: (chatIndex: number) => void
@@ -26,7 +30,7 @@ function cloneSprites(list: Sprite[]): Sprite[] {
   return list.map(s => ({ ...s }))
 }
 
-export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConversation, spriteClipboard, onSpriteClipboardChange, onChange, onConversationChange, onSplitHere, onMoveChatToPrev, onMergeWithPrev, onAddChat, onDeleteChat, onDeleteConversation, canDeleteConversation }: Props) {
+export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConversation, spriteClipboard, onSpriteClipboardChange, eBackgroundScale, nonEBackgroundScale, onEBackgroundScaleChange, onNonEBackgroundScaleChange, onChange, onConversationChange, onSplitHere, onMoveChatToPrev, onMergeWithPrev, onAddChat, onDeleteChat, onDeleteConversation, canDeleteConversation }: Props) {
   const [showAddChat, setShowAddChat] = useState(false)
   const [addChatInsertAt, setAddChatInsertAt] = useState(0)
   const [pickerTarget, setPickerTarget] = useState<'new' | number | 'background' | 'soundtrack' | null>(null)
@@ -444,6 +448,41 @@ export function EditPanel({ conversation, chat, chatIndex, baseUrl, hasPrevConve
           onClose={() => setPickerTarget(null)}
         />
       )}
+
+      {/* Export sprite scale */}
+      <div className="flex flex-col gap-2 p-3 border-b border-gray-700">
+        <span className="text-xs text-gray-400 font-medium uppercase tracking-widest">Export Sprite Scale</span>
+        <div className="grid grid-cols-1 gap-2">
+          <label className="flex flex-col gap-0.5">
+            <span className="text-xs text-gray-500">E-Background Sprite Scale</span>
+            <input
+              type="number"
+              min={0.1}
+              step={0.1}
+              value={eBackgroundScale}
+              onChange={e => {
+                const n = Number(e.target.value)
+                if (Number.isFinite(n)) onEBackgroundScaleChange(n)
+              }}
+              className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-pink-500"
+            />
+          </label>
+          <label className="flex flex-col gap-0.5">
+            <span className="text-xs text-gray-500">Non-E-Background Sprite Scale</span>
+            <input
+              type="number"
+              min={0.1}
+              step={0.1}
+              value={nonEBackgroundScale}
+              onChange={e => {
+                const n = Number(e.target.value)
+                if (Number.isFinite(n)) onNonEBackgroundScaleChange(n)
+              }}
+              className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-pink-500"
+            />
+          </label>
+        </div>
+      </div>
     </div>
   )
 }

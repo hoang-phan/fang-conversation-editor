@@ -4,10 +4,13 @@ import type { Chat, Conversation, ConversationFile, Sprite } from './types'
 
 export interface ExportOptions {
   /**
-   * Empire non-e-background sprites use a 2× coordinate scale in YAML.
+   * Independent user-set multipliers applied to sprite width/height on export.
    * Editor state/preview stay at authoring values; only export is scaled.
+   * `eBackgroundScale` applies when the conversation background is an e-background;
+   * `nonEBackgroundScale` applies otherwise. Both default to 1 when omitted.
    */
-  doubleNonEBackgroundSpriteSize?: boolean
+  eBackgroundScale?: number
+  nonEBackgroundScale?: number
 }
 
 function parseSprite(raw: unknown): Sprite {
@@ -57,8 +60,9 @@ export function parseYaml(text: string): ConversationFile {
 }
 
 function cleanForExport(conv: Conversation, options?: ExportOptions): object {
-  const scale =
-    options?.doubleNonEBackgroundSpriteSize && !isEBackgroundUrl(conv.background_url) ? 2 : 1
+  const scale = isEBackgroundUrl(conv.background_url)
+    ? (options?.eBackgroundScale ?? 1)
+    : (options?.nonEBackgroundScale ?? 1)
   const result: Record<string, unknown> = {}
   if (conv.background_url) result.background_url = conv.background_url
   if (conv.background_color) result.background_color = conv.background_color
